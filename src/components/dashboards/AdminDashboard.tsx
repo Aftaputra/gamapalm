@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
     Shield, Bell, User, Settings, LogOut, ChevronDown, BarChart3, FileText, 
     Users, Map, ClipboardCheck, Clock, CheckCircle, XCircle, FileInput, MoreHorizontal, Mail, MapPin, Award // <-- FIX: Tambah icon Award
 } from "lucide-react";
 
 // FIX 1: Impor TIPE DATA dari @/types, dan DATA VARIABEL dari @/lib/mockdata
-import { requests, auditTasks, auditors } from "@/lib/mockdata";
+import { requests as mockRequests, auditTasks as mockTasks, auditors as mockAuditors } from "@/lib/mockdata";
 import { RequestItem, AuditTask, Auditor } from "@/types";
+import { requestService, auditTaskService, auditorService } from "@/lib/supabase-service";
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer } from "react-leaflet";
 
@@ -85,51 +86,86 @@ const Overview = ({ stats, tasks, auditorsList }: { stats: any; tasks: AuditTask
 );
 
 // --- 2. KOMPONEN TABEL REQUESTS ---
-const RequestsTable = ({ requests }: { requests: RequestItem[] }) => (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-6">
-            <h2 className="text-xl font-bold text-slate-800">Manajemen Permintaan Sertifikasi</h2>
-            <p className="text-sm text-slate-500 mt-1">Setujui atau tolak permintaan sertifikasi yang masuk.</p>
-        </div>
-        <table className="w-full text-sm text-left text-slate-500">
-            <thead className="bg-slate-50 text-xs text-slate-700 uppercase">
-                <tr>
-                    <th scope="col" className="px-6 py-3">ID</th>
-                    <th scope="col" className="px-6 py-3">Nama Perusahaan</th>
-                    <th scope="col" className="px-6 py-3">Status</th>
-                    <th scope="col" className="px-6 py-3 text-right">Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                {requests.map((req) => (
-                    <tr key={req.id} className="bg-white border-t hover:bg-slate-50">
-                        <td className="px-6 py-4 font-medium text-slate-900">REQ-{String(req.id).padStart(3, '0')}</td>
-                        <td className="px-6 py-4">{req.company}</td>
-                        <td className="px-6 py-4"><StatusBadge status={req.status} /></td>
-                        <td className="px-6 py-4 text-right">
-                            {/* --- FIX: LOGIKA TOMBOL AKSI DIPERBARUI --- */}
-                            {req.status === 'pending' && (
-                                <div className="flex justify-end items-center gap-3">
-                                    <button className="font-semibold text-sm text-red-600 hover:text-red-800 transition-colors">Tolak</button>
-                                    <button className="font-semibold text-sm px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm">Setujui</button>
-                                </div>
-                            )}
-                            {req.status === 'approved' && (
-                                <a href="/cert" className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm">
-                                    <Award className="w-4 h-4" />
-                                    <span>Terbitkan Sertifikat</span>
-                                </a>
-                            )}
-                            {req.status === 'rejected' && (
-                                <span className="text-xs text-slate-500 italic">Tindakan selesai</span>
-                            )}
-                        </td>
+const RequestsTable = ({ requests: initialRequests }: { requests: RequestItem[] }) => {
+    const [requests, setRequests] = useState(initialRequests);
+
+    useEffect(() => {
+        setRequests(initialRequests);
+    }, [initialRequests]);
+
+    const handleApprove = async (requestId: string) => {
+        const result = await requestService.updateRequestStatus(requestId, 'approved');
+        if (result.success) {
+            setRequests(prevRequests =>
+                prevRequests.map(req => req.id === requestId ? { ...req, status: 'approved' } : req)
+            );
+        }
+    };
+
+    const handleReject = async (requestId: string) => {
+        const result = await requestService.updateRequestStatus(requestId, 'rejected');
+        if (result.success) {
+            setRequests(prevRequests =>
+                prevRequests.map(req => req.id === requestId ? { ...req, status: 'rejected' } : req)
+            );
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6">
+                <h2 className="text-xl font-bold text-slate-800">Manajemen Permintaan Sertifikasi</h2>
+                <p className="text-sm text-slate-500 mt-1">Setujui atau tolak permintaan sertifikasi yang masuk.</p>
+            </div>
+            <table className="w-full text-sm text-left text-slate-500">
+                <thead className="bg-slate-50 text-xs text-slate-700 uppercase">
+                    <tr>
+                        <th scope="col" className="px-6 py-3">ID</th>
+                        <th scope="col" className="px-6 py-3">Nama Perusahaan</th>
+                        <th scope="col" className="px-6 py-3">Status</th>
+                        <th scope="col" className="px-6 py-3 text-right">Aksi</th>
                     </tr>
-                ))}
-            </tbody>
-        </table>
-    </div>
-);
+                </thead>
+                <tbody>
+                    {requests.map((req) => (
+                        <tr key={req.id} className="bg-white border-t hover:bg-slate-50">
+                            <td className="px-6 py-4 font-medium text-slate-900">REQ-{String(req.id).padStart(3, '0')}</td>
+                            <td className="px-6 py-4">{req.company}</td>
+                            <td className="px-6 py-4"><StatusBadge status={req.status} /></td>
+                            <td className="px-6 py-4 text-right">
+                                {req.status === 'pending' && (
+                                    <div className="flex justify-end items-center gap-3">
+                                        <button 
+                                            onClick={() => handleReject(String(req.id))}
+                                            className="font-semibold text-sm text-red-600 hover:text-red-800 transition-colors"
+                                        >
+                                            Tolak
+                                        </button>
+                                        <button 
+                                            onClick={() => handleApprove(String(req.id))}
+                                            className="font-semibold text-sm px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                                        >
+                                            Setujui
+                                        </button>
+                                    </div>
+                                )}
+                                {req.status === 'approved' && (
+                                    <a href="/cert" className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+                                        <Award className="w-4 h-4" />
+                                        <span>Terbitkan Sertifikat</span>
+                                    </a>
+                                )}
+                                {req.status === 'rejected' && (
+                                    <span className="text-xs text-slate-500 italic">Tindakan selesai</span>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
 
 
 // --- 3. KOMPONEN TAMPILAN AUDITORS ---
@@ -200,6 +236,35 @@ const GeospatialView = () => {
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState("overview");
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [requests, setRequests] = useState<RequestItem[]>(mockRequests);
+    const [auditTasks, setAuditTasks] = useState<AuditTask[]>(mockTasks);
+    const [auditors, setAuditors] = useState<Auditor[]>(mockAuditors);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Load data from Supabase on mount
+    useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                const [requestsData, tasksData, auditorsData] = await Promise.all([
+                    requestService.getAllRequests(),
+                    auditTaskService.getAllTasks(),
+                    auditorService.getAllAuditors()
+                ]);
+                
+                if (requestsData.length > 0) setRequests(requestsData);
+                if (tasksData.length > 0) setAuditTasks(tasksData);
+                if (auditorsData.length > 0) setAuditors(auditorsData);
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                // Fallback to mock data if Supabase fails
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        loadData();
+    }, []);
 
     const stats = {
         total: requests.length,

@@ -3,8 +3,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { users, auditProjects as initialProjects, ISPO_PRINCIPLES } from "@/lib/mockdata";
+import { users as mockUsers, auditProjects as initialProjects, ISPO_PRINCIPLES } from "@/lib/mockdata";
 import { User, AuditProject, Criterion } from "@/types";
+import { userService, projectService, criteriaService } from "@/lib/supabase-service";
 import StatusBadge from "../StatusBadge";
 import { 
     Upload, FileText, MessageCircleWarning, CheckCircle2, Clock, Dot, Loader2, BookCheck, 
@@ -302,17 +303,51 @@ export default function UserDashboard() {
   const [activePrincipleId, setActivePrincipleId] = useState<string>(ISPO_PRINCIPLES[0].id);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [criterionToUpdate, setCriterionToUpdate] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Load user and project from Supabase
   useEffect(() => {
-    const loggedInUserId = localStorage.getItem("userId");
-    if (loggedInUserId) {
-      const foundUser = users.find(user => user.id === loggedInUserId);
-      if (foundUser) {
-        setCurrentUser(foundUser);
-        const userProject = initialProjects.find(p => p.companyName === foundUser.company);
-        setProject(userProject || null);
+    const loadUserAndProject = async () => {
+      const loggedInUserId = localStorage.getItem("userId");
+      if (loggedInUserId) {
+        setIsLoading(true);
+        try {
+          const foundUser = await userService.getUserById(loggedInUserId);
+          if (foundUser) {
+            setCurrentUser(foundUser);
+            const userProjects = await projectService.getProjectsByUserId(loggedInUserId);
+            if (userProjects.length > 0) {
+              setProject(userProjects[0]);
+            } else {
+              // Fallback to mock data
+              const mockProject = initialProjects.find(p => p.companyName === foundUser.company);
+              setProject(mockProject || null);
+            }
+          } else {
+            // Fallback to mock data
+            const mockUser = mockUsers.find(user => user.id === loggedInUserId);
+            if (mockUser) {
+              setCurrentUser(mockUser);
+              const userProject = initialProjects.find(p => p.companyName === mockUser.company);
+              setProject(userProject || null);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user data:', error);
+          // Fallback to mock data
+          const mockUser = mockUsers.find(user => user.id === loggedInUserId);
+          if (mockUser) {
+            setCurrentUser(mockUser);
+            const userProject = initialProjects.find(p => p.companyName === mockUser.company);
+            setProject(userProject || null);
+          }
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
+    };
+    
+    loadUserAndProject();
   }, []);
 
   const handleFileUploadRequest = (criterionId: string) => {
@@ -320,11 +355,20 @@ export default function UserDashboard() {
     fileInputRef.current?.click();
   };
   
-  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0] && criterionToUpdate && project) {
+        const fileUrl = `/files/${event.target.files[0].name}`;
+        
+        // Update in Supabase
+        await criteriaService.updateCriterion(project.projectId, criterionToUpdate, {
+            status: 'Menunggu Verifikasi',
+            submittedFileUrl: fileUrl
+        });
+
+        // Update local state
         const updates: Partial<Criterion> = {
             status: 'Menunggu Verifikasi',
-            submittedFileUrl: `/files/${event.target.files[0].name}`
+            submittedFileUrl: fileUrl
         };
         const newProject = updateCriterionInProject(project, criterionToUpdate, updates);
         setProject(newProject);
@@ -339,8 +383,27 @@ export default function UserDashboard() {
     setProject(newProject);
   };
   
-  const handleSaveText = (criterionId: string) => {
+  const handleSaveText = async (criterionId: string) => {
       if (!project) return;
+      
+      // Find the criterion to get its current text
+      let submittedText = '';
+      for (const key in project.principles) {
+          const principleKey = key as keyof typeof project.principles;
+          const criterion = project.principles[principleKey].find((c: Criterion) => c.id === criterionId);
+          if (criterion) {
+              submittedText = criterion.submittedText || '';
+              break;
+          }
+      }
+
+      // Update in Supabase
+      await criteriaService.updateCriterion(project.projectId, criterionId, {
+          status: 'Menunggu Verifikasi',
+          submittedText: submittedText
+      });
+
+      // Update local state
       const updates: Partial<Criterion> = { status: 'Menunggu Verifikasi' };
       const newProject = updateCriterionInProject(project, criterionId, updates);
       setProject(newProject);

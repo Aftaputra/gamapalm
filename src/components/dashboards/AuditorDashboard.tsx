@@ -3,8 +3,9 @@
 "use client";
 
 import React, { useState, useEffect, Fragment } from "react";
-import { auditors, auditProjects as initialProjects, ISPO_PRINCIPLES } from "@/lib/mockdata";
+import { auditors as mockAuditors, auditProjects as initialProjects, ISPO_PRINCIPLES } from "@/lib/mockdata";
 import { Auditor, AuditProject, Criterion } from "@/types";
+import { projectService, auditorService, criteriaService } from "@/lib/supabase-service";
 import StatusBadge from "../StatusBadge";
 import { 
     FileText, MessageSquare, CheckSquare, X, Calendar, Building, ListChecks, 
@@ -231,14 +232,49 @@ export default function AuditorDashboard() {
     const [selectedCriterion, setSelectedCriterion] = useState<Criterion | null>(null);
     const [currentProject, setCurrentProject] = useState<AuditProject | null>(null);
     const [feedbackText, setFeedbackText] = useState("");
+    const [isLoading, setIsLoading] = useState(true);
 
+    // Load auditor data from Supabase
     useEffect(() => {
-        const loggedInAuditorId = localStorage.getItem("auditorId");
-        if (loggedInAuditorId) {
-            const foundUser = auditors.find(auditor => auditor.id === loggedInAuditorId);
-            setCurrentUser(foundUser || null);
-        }
+        const loadAuditor = async () => {
+            const loggedInAuditorId = localStorage.getItem("auditorId");
+            if (loggedInAuditorId) {
+                const foundUser = await auditorService.getAuditorById(loggedInAuditorId);
+                if (foundUser) {
+                    setCurrentUser(foundUser);
+                } else {
+                    // Fallback to mock data
+                    const mockUser = mockAuditors.find(auditor => auditor.id === loggedInAuditorId);
+                    setCurrentUser(mockUser || null);
+                }
+            }
+        };
+        loadAuditor();
     }, []);
+
+    // Load projects from Supabase
+    useEffect(() => {
+        const loadProjects = async () => {
+            if (!currentUser) return;
+            
+            setIsLoading(true);
+            try {
+                const allProjects = await projectService.getAllProjects();
+                if (allProjects.length > 0) {
+                    setProjects(allProjects);
+                }
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                // Fallback to mock data
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        if (currentUser) {
+            loadProjects();
+        }
+    }, [currentUser]);
 
     useEffect(() => {
         if (currentUser) {
@@ -256,22 +292,31 @@ export default function AuditorDashboard() {
         }
     }, [currentUser, projects, activeProjectId]);
 
-    const handleUpdateStatus = (projectId: string, criterionId: string, newStatus: Criterion['status'], notes: string | null = null) => {
-        setProjects(currentProjects =>
-            currentProjects.map(project => {
-                if (project.projectId !== projectId) return project;
-                const updatedPrinciples: AuditProject['principles'] = { ...project.principles };
-                for (const key in updatedPrinciples) {
-                    const pKey = key as keyof typeof updatedPrinciples;
-                    updatedPrinciples[pKey] = updatedPrinciples[pKey].map(c => 
-                        c.id === criterionId 
-                        ? { ...c, status: newStatus, auditorNotes: notes !== null ? notes : c.auditorNotes } 
-                        : c
-                    );
-                }
-                return { ...project, principles: updatedPrinciples };
-            })
-        );
+    const handleUpdateStatus = async (projectId: string, criterionId: string, newStatus: Criterion['status'], notes: string | null = null) => {
+        // Update in Supabase
+        const result = await criteriaService.updateCriterion(projectId, criterionId, {
+            status: newStatus,
+            auditorNotes: notes
+        });
+
+        if (result.success) {
+            // Update local state
+            setProjects(currentProjects =>
+                currentProjects.map(project => {
+                    if (project.projectId !== projectId) return project;
+                    const updatedPrinciples: AuditProject['principles'] = { ...project.principles };
+                    for (const key in updatedPrinciples) {
+                        const pKey = key as keyof typeof updatedPrinciples;
+                        updatedPrinciples[pKey] = updatedPrinciples[pKey].map(c => 
+                            c.id === criterionId 
+                            ? { ...c, status: newStatus, auditorNotes: notes !== null ? notes : c.auditorNotes } 
+                            : c
+                        );
+                    }
+                    return { ...project, principles: updatedPrinciples };
+                })
+            );
+        }
     };
 
     const openFeedbackModal = (criterion: Criterion, project: AuditProject) => {

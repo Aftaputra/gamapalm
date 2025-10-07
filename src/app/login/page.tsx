@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Leaf, Shield, Eye, User, ArrowLeft } from "lucide-react";
-import { auditors, users, adminAccount } from "@/lib/mockdata";
+import { authService } from "@/lib/supabase-service";
 
 type View = 'role-select' | 'admin-login' | 'auditor-login' | 'user-login';
 
@@ -59,42 +59,47 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
-      let loginSuccess = false;
+    try {
+      let result;
       
       if (view === 'admin-login') {
-        if (email === adminAccount.email && password === adminAccount.password) {
+        result = await authService.loginAdmin(email, password);
+        if (result.success) {
           localStorage.setItem("role", "admin");
-          loginSuccess = true;
+          router.push("/dashboard");
+        } else {
+          setError("Email atau password salah!");
         }
       } else if (view === 'auditor-login') {
-        const foundAuditor = auditors.find(a => a.email.toLowerCase() === email.toLowerCase());
-        if (foundAuditor && password === foundAuditor.password) {
+        result = await authService.loginAuditor(email, password);
+        if (result.success && result.auditor) {
           localStorage.setItem("role", "auditor");
-          localStorage.setItem("auditorId", foundAuditor.id);
-          loginSuccess = true;
+          localStorage.setItem("auditorId", result.auditor.id);
+          router.push("/dashboard");
+        } else {
+          setError("Email atau password salah!");
         }
       } else if (view === 'user-login') {
-        const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (foundUser && password === foundUser.password) {
+        result = await authService.loginUser(email, password);
+        if (result.success && result.user) {
           localStorage.setItem("role", "user");
-          localStorage.setItem("userId", foundUser.id);
-          loginSuccess = true;
+          localStorage.setItem("userId", result.user.id);
+          router.push("/dashboard");
+        } else {
+          setError("Email atau password salah!");
         }
       }
-
-      if (loginSuccess) {
-        router.push("/dashboard");
-      } else {
-        setError("Email atau password salah!");
-        setIsLoading(false);
-      }
-    }, 1000);
+    } catch (err) {
+      console.error('Login error:', err);
+      setError("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const changeView = (newView: View) => {

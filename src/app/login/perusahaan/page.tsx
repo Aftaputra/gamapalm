@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User } from "lucide-react";
-import { users } from "@/lib/mockdata";
+import { authService } from "@/lib/supabase-service";
 
 export default function PerusahaanLoginPage() {
   const router = useRouter();
@@ -13,22 +13,26 @@ export default function PerusahaanLoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
-      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (foundUser && password === foundUser.password) {
+    try {
+      const result = await authService.loginUser(email, password);
+      if (result.success && result.user) {
         localStorage.setItem("role", "user");
-        localStorage.setItem("userId", foundUser.id);
+        localStorage.setItem("userId", result.user.id);
         router.push("/dashboard");
       } else {
         setError("Email atau password salah!");
-        setIsLoading(false);
       }
-    }, 1000);
+    } catch (err) {
+      console.error('Login error:', err);
+      setError("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

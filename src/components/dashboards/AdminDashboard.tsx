@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
     Shield, Bell, User, Settings, LogOut, ChevronDown, BarChart3, FileText, 
-    Users, Map, ClipboardCheck, Clock, CheckCircle, XCircle, FileInput, MoreHorizontal, Mail, MapPin, Award // <-- FIX: Tambah icon Award
+    Users, Map, ClipboardCheck, Clock, CheckCircle, XCircle, FileInput, MoreHorizontal, 
+    Mail, MapPin, Award, Loader2
 } from "lucide-react";
 
-// FIX 1: Impor TIPE DATA dari @/types, dan DATA VARIABEL dari @/lib/mockdata
-import { requests, auditTasks, auditors } from "@/lib/mockdata";
+import { getRequests, getAuditTasks, getAuditors } from "@/lib/api";
 import { RequestItem, AuditTask, Auditor } from "@/types";
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer } from "react-leaflet";
@@ -16,7 +16,6 @@ import { MapContainer, TileLayer } from "react-leaflet";
 // ==                      KOMPONEN-KOMPONEN KECIL (UI KIT)         ==
 // =================================================================
 
-// FIX 2: Membuat tipe status lebih eksplisit untuk TypeScript
 type BadgeStatus = 'pending' | 'approved' | 'rejected';
 
 const StatusBadge = ({ status }: { status: BadgeStatus }) => {
@@ -30,7 +29,7 @@ const StatusBadge = ({ status }: { status: BadgeStatus }) => {
 };
 
 // =================================================================
-// ==              KOMPONEN VIEW UNTUK SETIAP TAB (BARU)          ==
+// ==              KOMPONEN VIEW UNTUK SETIAP TAB                 ==
 // =================================================================
 
 // --- 1. KOMPONEN OVERVIEW ---
@@ -107,7 +106,6 @@ const RequestsTable = ({ requests }: { requests: RequestItem[] }) => (
                         <td className="px-6 py-4">{req.company}</td>
                         <td className="px-6 py-4"><StatusBadge status={req.status} /></td>
                         <td className="px-6 py-4 text-right">
-                            {/* --- FIX: LOGIKA TOMBOL AKSI DIPERBARUI --- */}
                             {req.status === 'pending' && (
                                 <div className="flex justify-end items-center gap-3">
                                     <button className="font-semibold text-sm text-red-600 hover:text-red-800 transition-colors">Tolak</button>
@@ -130,7 +128,6 @@ const RequestsTable = ({ requests }: { requests: RequestItem[] }) => (
         </table>
     </div>
 );
-
 
 // --- 3. KOMPONEN TAMPILAN AUDITORS ---
 const AuditorsView = ({ auditors, tasks }: { auditors: Auditor[], tasks: AuditTask[] }) => {
@@ -172,7 +169,7 @@ const AuditorsView = ({ auditors, tasks }: { auditors: Auditor[], tasks: AuditTa
     );
 };
 
-// --- 4. KOMPONEN GEOSPATIAL (VERSI PROTOTIPE SIMPEL) ---
+// --- 4. KOMPONEN GEOSPATIAL ---
 const GeospatialView = () => {
     const defaultPosition: [number, number] = [-6.2088, 106.8456]; 
 
@@ -200,6 +197,47 @@ const GeospatialView = () => {
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState("overview");
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    
+    const [requests, setRequests] = useState<RequestItem[]>([]);
+    const [auditTasks, setAuditTasks] = useState<AuditTask[]>([]);
+    const [auditors, setAuditors] = useState<Auditor[]>([]);
+
+    // Load data dari Supabase
+    useEffect(() => {
+        async function loadData() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                console.log('🔄 Loading admin dashboard data...');
+
+                const [requestsData, tasksData, auditorsData] = await Promise.all([
+                    getRequests(),
+                    getAuditTasks(),
+                    getAuditors()
+                ]);
+
+                console.log('📊 Admin data loaded:', {
+                    requests: requestsData.length,
+                    tasks: tasksData.length,
+                    auditors: auditorsData.length
+                });
+
+                setRequests(requestsData);
+                setAuditTasks(tasksData);
+                setAuditors(auditorsData);
+                setLoading(false);
+            } catch (err) {
+                console.error('Error loading admin data:', err);
+                setError('Gagal memuat data dari database');
+                setLoading(false);
+            }
+        }
+
+        loadData();
+    }, []);
 
     const stats = {
         total: requests.length,
@@ -213,6 +251,35 @@ const AdminDashboard = () => {
         { id: "auditors", label: "Auditors", icon: Users },
         { id: "map", label: "Geospatial", icon: Map },
     ];
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+                    <p className="text-slate-600 font-semibold">Memuat Dashboard Admin...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
+                    <div className="text-red-500 text-5xl mb-4">⚠️</div>
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">Terjadi Kesalahan</h2>
+                    <p className="text-slate-600 mb-4">{error}</p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                    >
+                        Muat Ulang
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50">

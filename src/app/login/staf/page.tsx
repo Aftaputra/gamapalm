@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { auditors, adminAccount } from "@/lib/mockdata";
+import { login } from "@/lib/api";
+import { Loader2 } from "lucide-react";
 
 export default function StafLoginPage() {
   const router = useRouter();
@@ -12,34 +13,42 @@ export default function StafLoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
-      let loginSuccess = false;
-      if (role === 'admin') {
-        if (email === adminAccount.email && password === adminAccount.password) {
-          localStorage.setItem("role", "admin");
-          loginSuccess = true;
-        }
-      } else {
-        const foundAuditor = auditors.find(a => a.email.toLowerCase() === email.toLowerCase());
-        if (foundAuditor && password === foundAuditor.password) {
-          localStorage.setItem("role", "auditor");
-          localStorage.setItem("auditorId", foundAuditor.id);
-          loginSuccess = true;
-        }
-      }
+    try {
+      console.log('🔐 Attempting login:', { email, role });
+      
+      const user = await login(email, password);
+      
+      console.log('Login result:', user);
 
-      if (loginSuccess) {
+      if (user && user.role === role) {
+        // Simpan data ke localStorage
+        localStorage.setItem("role", user.role);
+        
+        if (user.role === 'auditor') {
+          localStorage.setItem("auditorId", user.id);
+        }
+        
+        console.log('✅ Login successful, redirecting...');
+        
+        // Redirect ke dashboard
         router.push("/dashboard");
+      } else if (user && user.role !== role) {
+        setError(`Akun ini terdaftar sebagai ${user.role}, bukan ${role}`);
+        setIsLoading(false);
       } else {
         setError("Email atau password salah!");
         setIsLoading(false);
       }
-    }, 1000);
+    } catch (err) {
+      console.error('Login error:', err);
+      setError("Terjadi kesalahan saat login. Pastikan database sudah terisi.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -93,15 +102,37 @@ export default function StafLoginPage() {
               placeholder="********"
             />
           </div>
-          {error && <p className="text-red-600 text-sm text-center font-bold">{error}</p>}
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-600 text-sm text-center font-semibold">{error}</p>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-base hover:bg-blue-700 disabled:bg-gray-400"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-base hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {isLoading ? 'Mencoba Masuk...' : 'LOGIN'}
+            {isLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Mencoba Masuk...</span>
+              </>
+            ) : (
+              'LOGIN'
+            )}
           </button>
         </form>
+
+        {/* Quick Login Hints */}
+        <div className="mt-4 pt-4 border-t border-slate-300">
+          <p className="text-xs text-slate-600 text-center mb-2 font-semibold">Demo Credentials:</p>
+          <div className="space-y-1 text-xs text-slate-600">
+            <p>👤 <strong>Auditor:</strong> budi.s@email.com / passbudi123</p>
+            <p>⚙️ <strong>Admin:</strong> admin@ispo.com / admin123</p>
+          </div>
+        </div>
       </div>
     </div>
   );

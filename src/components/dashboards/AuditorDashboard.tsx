@@ -1,16 +1,19 @@
-// GANTI SELURUH ISI FILE AuditorDashboard.tsx DENGAN KODE FINAL INI
-
 "use client";
 
 import React, { useState, useEffect, Fragment } from "react";
-import { auditors, auditProjects as initialProjects, ISPO_PRINCIPLES } from "@/lib/mockdata";
-import { Auditor, AuditProject, Criterion } from "@/types";
+import { 
+    getAuditors, 
+    getAuditProjects, 
+    updateAuditCriterion, 
+    uploadFile,
+    getAllPrinciples 
+} from "@/lib/api";
+import { Auditor, AuditProject, Criterion, Principle } from "@/types";
 import StatusBadge from "../StatusBadge";
 import { 
     FileText, MessageSquare, CheckSquare, X, Calendar, Building, ListChecks, 
     ClipboardList, MessageCircle, Info, Paperclip, PlayCircle, Flag
 } from "lucide-react";
-
 
 // --- Bagian Header & Sidebar ---
 
@@ -113,13 +116,19 @@ const ProjectSidebar = ({ projects, activeProjectId, setActiveProjectId }: {
 
 // --- Komponen untuk kartu tugas auditor ---
 
-const CriterionCard = ({ criterion, project, onFeedback, onApprove }: { 
+const CriterionCard = ({ 
+    criterion, 
+    project, 
+    principle,
+    onFeedback, 
+    onApprove 
+}: { 
     criterion: Criterion; 
     project: AuditProject; 
+    principle: Principle | undefined;
     onFeedback: (c: Criterion, p: AuditProject) => void; 
     onApprove: (pid: string, cid: string) => void;
 }) => {
-    const principle = ISPO_PRINCIPLES.find(p => p.id === `P${criterion.id.split('.')[0]}`);
     const hasEvidence = criterion.submittedFileUrl || criterion.submittedText;
     const dummyFiles = [`Dokumen_${criterion.id}_Utama.pdf`, `Lampiran_${criterion.id}_A.docx`];
     
@@ -224,54 +233,141 @@ const CriterionCard = ({ criterion, project, onFeedback, onApprove }: {
 // --- Komponen utama untuk dashboard auditor ---
 export default function AuditorDashboard() {
     const [currentUser, setCurrentUser] = useState<Auditor | null>(null);
-    const [projects, setProjects] = useState<AuditProject[]>(initialProjects);
+    const [projects, setProjects] = useState<AuditProject[]>([]);
+    const [principles, setPrinciples] = useState<Principle[]>([]);
     const [myAssignments, setMyAssignments] = useState<{ project: AuditProject, criteria: Criterion[] }[]>([]);
     const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCriterion, setSelectedCriterion] = useState<Criterion | null>(null);
     const [currentProject, setCurrentProject] = useState<AuditProject | null>(null);
     const [feedbackText, setFeedbackText] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
+    // Load data awal dari Supabase
     useEffect(() => {
-        const loggedInAuditorId = localStorage.getItem("auditorId");
-        if (loggedInAuditorId) {
-            const foundUser = auditors.find(auditor => auditor.id === loggedInAuditorId);
-            setCurrentUser(foundUser || null);
-        }
-    }, []);
+        async function loadData() {
+            try {
+                setLoading(true);
+                setError(null);
 
-    useEffect(() => {
-        if (currentUser) {
-            const assignments = projects.map(project => {
-                const criteriaForAuditor = Object.values(project.principles).flat().filter(
-                    criterion => criterion.assignedAuditorId === currentUser.id
+                // Ambil auditor ID dari localStorage
+                const loggedInAuditorId = localStorage.getItem("auditorId");
+                if (!loggedInAuditorId) {
+                    setError("Anda belum login sebagai auditor");
+                    setLoading(false);
+                    return;
+                }
+
+                // Fetch auditors
+                const auditorsData = await getAuditors();
+                console.log("Auditors from DB:", auditorsData);
+                console.log("Looking for ID:", loggedInAuditorId);
+                
+                // Coba cari dengan berbagai format ID
+                const foundUser = auditorsData.find(auditor => 
+                    auditor.id === loggedInAuditorId || 
+                    auditor.id === String(loggedInAuditorId) ||
+                    String(auditor.id) === loggedInAuditorId
                 );
-                return { project, criteria: criteriaForAuditor };
-            }).filter(assignment => assignment.criteria.length > 0);
+                
+                if (!foundUser) {
+                    console.error("User not found. Available IDs:", auditorsData.map(a => a.id));
+                    setError(`Data auditor tidak ditemukan (ID: ${loggedInAuditorId}). Silakan login ulang.`);
+                    setLoading(false);
+                    return;
+                }
+                
+                setCurrentUser(foundUser);
 
-            setMyAssignments(assignments);
-            if (assignments.length > 0 && !activeProjectId) {
-                setActiveProjectId(assignments[0].project.projectId);
+                // Fetch principles
+                const principlesData = await getAllPrinciples();
+                setPrinciples(principlesData);
+
+                // Fetch projects
+                const projectsData = await getAuditProjects();
+                setProjects(projectsData);
+
+                // Filter assignments untuk auditor ini
+                const assignments = projectsData.map(project => {
+                    const criteriaForAuditor = Object.values(project.principles).flat().filter(
+                        criterion => criterion.assignedAuditorId === loggedInAuditorId
+                    );
+                    return { project, criteria: criteriaForAuditor };
+                }).filter(assignment => assignment.criteria.length > 0);
+
+                setMyAssignments(assignments);
+                
+                if (assignments.length > 0 && !activeProjectId) {
+                    setActiveProjectId(assignments[0].project.projectId);
+                }
+
+                setLoading(false);
+            } catch (err) {
+                console.error("Error loading data:", err);
+                setError("Gagal memuat data dari database");
+                setLoading(false);
             }
         }
-    }, [currentUser, projects, activeProjectId]);
 
-    const handleUpdateStatus = (projectId: string, criterionId: string, newStatus: Criterion['status'], notes: string | null = null) => {
-        setProjects(currentProjects =>
-            currentProjects.map(project => {
-                if (project.projectId !== projectId) return project;
-                const updatedPrinciples: AuditProject['principles'] = { ...project.principles };
-                for (const key in updatedPrinciples) {
-                    const pKey = key as keyof typeof updatedPrinciples;
-                    updatedPrinciples[pKey] = updatedPrinciples[pKey].map(c => 
-                        c.id === criterionId 
-                        ? { ...c, status: newStatus, auditorNotes: notes !== null ? notes : c.auditorNotes } 
-                        : c
+        loadData();
+    }, []);
+
+    // Helper untuk mendapatkan principle dari criterion ID
+    const getPrincipleForCriterion = (criterionId: string): Principle | undefined => {
+        const principleId = `P${criterionId.split('.')[0]}`;
+        return principles.find(p => p.id === principleId);
+    };
+
+    const handleUpdateStatus = async (
+        projectId: string, 
+        criterionId: string, 
+        newStatus: Criterion['status'], 
+        notes: string | null = null
+    ) => {
+        try {
+            const updates: any = { status: newStatus };
+            if (notes !== null) {
+                updates.auditorNotes = notes;
+            }
+
+            const success = await updateAuditCriterion(projectId, criterionId, updates);
+            
+            if (success) {
+                // Update local state
+                setProjects(currentProjects =>
+                    currentProjects.map(project => {
+                        if (project.projectId !== projectId) return project;
+                        const updatedPrinciples: AuditProject['principles'] = { ...project.principles };
+                        for (const key in updatedPrinciples) {
+                            const pKey = key as keyof typeof updatedPrinciples;
+                            updatedPrinciples[pKey] = updatedPrinciples[pKey].map(c => 
+                                c.id === criterionId 
+                                ? { ...c, status: newStatus, auditorNotes: notes !== null ? notes : c.auditorNotes } 
+                                : c
+                            );
+                        }
+                        return { ...project, principles: updatedPrinciples };
+                    })
+                );
+
+                // Refresh assignments
+                const updatedProjects = await getAuditProjects();
+                const loggedInAuditorId = localStorage.getItem("auditorId");
+                const assignments = updatedProjects.map(project => {
+                    const criteriaForAuditor = Object.values(project.principles).flat().filter(
+                        criterion => criterion.assignedAuditorId === loggedInAuditorId
                     );
-                }
-                return { ...project, principles: updatedPrinciples };
-            })
-        );
+                    return { project, criteria: criteriaForAuditor };
+                }).filter(assignment => assignment.criteria.length > 0);
+                setMyAssignments(assignments);
+            } else {
+                alert("Gagal mengupdate status kriteria");
+            }
+        } catch (err) {
+            console.error("Error updating criterion:", err);
+            alert("Terjadi kesalahan saat mengupdate status");
+        }
     };
 
     const openFeedbackModal = (criterion: Criterion, project: AuditProject) => {
@@ -334,7 +430,8 @@ export default function AuditorDashboard() {
                             <CriterionCard 
                                 key={criterion.id} 
                                 criterion={criterion} 
-                                project={activeProjectData.project} 
+                                project={activeProjectData.project}
+                                principle={getPrincipleForCriterion(criterion.id)}
                                 onFeedback={openFeedbackModal} 
                                 onApprove={handleApprove} 
                             />
@@ -345,7 +442,55 @@ export default function AuditorDashboard() {
         );
     };
 
-    if (!currentUser) { return <div className="p-10 text-center">Memuat data...</div>; }
+    if (loading) {
+        return (
+            <div className="bg-slate-100 min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-slate-600">Memuat data dari database...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="bg-slate-100 min-h-screen flex items-center justify-center">
+                <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
+                    <div className="text-red-500 text-5xl mb-4">⚠️</div>
+                    <h2 className="text-xl font-bold text-slate-900 mb-2">Terjadi Kesalahan</h2>
+                    <p className="text-slate-600 mb-4">{error}</p>
+                    <div className="flex gap-3 justify-center">
+                        <button 
+                            onClick={() => {
+                                localStorage.removeItem("auditorId");
+                                window.location.href = "/login";
+                            }}
+                            className="bg-slate-600 text-white px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors"
+                        >
+                            Kembali ke Login
+                        </button>
+                        <button 
+                            onClick={() => window.location.reload()} 
+                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            Muat Ulang
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!currentUser) {
+        return (
+            <div className="bg-slate-100 min-h-screen flex items-center justify-center">
+                <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
+                    <p className="text-slate-600">Silakan login terlebih dahulu</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <Fragment>
@@ -363,14 +508,34 @@ export default function AuditorDashboard() {
             {isModalOpen && selectedCriterion && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 w-full max-w-lg space-y-4 shadow-2xl">
-                        <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-slate-800">Feedback untuk: {selectedCriterion.name}</h3><button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-gray-500"/></button></div>
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-slate-800">Feedback untuk: {selectedCriterion.name}</h3>
+                            <button onClick={() => setIsModalOpen(false)}>
+                                <X className="w-5 h-5 text-gray-500"/>
+                            </button>
+                        </div>
                         <div>
                             <label className="text-sm font-semibold text-slate-900">Catatan Revisi:</label>
-                            <textarea value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} className="mt-1 w-full border-2 border-gray-300 rounded-lg p-3 h-32 text-slate-800" placeholder="Contoh: Mohon lampirkan dokumen SIUP yang terbaru."/>
+                            <textarea 
+                                value={feedbackText} 
+                                onChange={(e) => setFeedbackText(e.target.value)} 
+                                className="mt-1 w-full border-2 border-gray-300 rounded-lg p-3 h-32 text-slate-800" 
+                                placeholder="Contoh: Mohon lampirkan dokumen SIUP yang terbaru."
+                            />
                         </div>
                         <div className="flex justify-end gap-3">
-                            <button onClick={() => setIsModalOpen(false)} className="bg-slate-100 text-slate-800 font-bold py-2 px-4 rounded-lg hover:bg-slate-200">Batal</button>
-                            <button onClick={submitFeedback} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Kirim Feedback</button>
+                            <button 
+                                onClick={() => setIsModalOpen(false)} 
+                                className="bg-slate-100 text-slate-800 font-bold py-2 px-4 rounded-lg hover:bg-slate-200"
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                onClick={submitFeedback} 
+                                className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700"
+                            >
+                                Kirim Feedback
+                            </button>
                         </div>
                     </div>
                 </div>

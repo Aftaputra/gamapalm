@@ -5,24 +5,328 @@ import {
     getAuditors, 
     getAuditProjects, 
     updateAuditCriterion, 
-    uploadFile,
     getAllPrinciples 
 } from "@/lib/api";
 import { Auditor, AuditProject, Criterion, Principle } from "@/types";
 import StatusBadge from "../StatusBadge";
 import { 
     FileText, MessageSquare, CheckSquare, X, Calendar, Building, ListChecks, 
-    ClipboardList, MessageCircle, Info, Paperclip, PlayCircle, Flag
+    ClipboardList, MessageCircle, Info, Paperclip, PlayCircle, Flag, Download,
+    Eye, ExternalLink, FileIcon, Clock, CheckCircle, AlertTriangle, User,
+    Brain, Satellite, Zap, MapPin, BarChart3, TrendingUp, Sparkles, AlertCircle
 } from "lucide-react";
 
-// --- Bagian Header & Sidebar ---
-
+// --- Header & Sidebar Components ---
 const Header = ({ currentUser }: { currentUser: Auditor }) => (
     <div>
         <h1 className="text-3xl font-bold text-slate-900">Auditor Workspace</h1>
-        <p className="text-slate-600 mt-1">Selamat datang, <strong>{currentUser.name}</strong>. Pilih proyek audit untuk memulai.</p>
+        <p className="text-slate-600 mt-1">
+            Selamat datang, <strong>{currentUser.name}</strong>. 
+            Review dan verifikasi dokumen yang telah diupload perusahaan dengan bantuan AI analysis.
+        </p>
     </div>
 );
+
+// --- AI Analysis Component ---
+const AIAnalysisPanel = ({ criterion, project }: { criterion: Criterion; project: AuditProject }) => {
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [showAnalysis, setShowAnalysis] = useState(false);
+
+    const triggerAnalysis = () => {
+        setIsAnalyzing(true);
+        // Simulate AI processing
+        setTimeout(() => {
+            setIsAnalyzing(false);
+            setShowAnalysis(true);
+        }, 2000);
+    };
+
+    const demoAnalysisResult = {
+        confidence: 85,
+        compliance: "Partial Compliance",
+        summary: "Dokumen telah dianalisis menggunakan OCR dan Natural Language Processing. Ditemukan informasi relevan mengenai sertifikasi lahan, namun beberapa detail teknis perlu verifikasi lebih lanjut.",
+        keyFindings: [
+            "✅ Sertifikat lahan tercantum dengan jelas",
+            "⚠️ Tanggal ekspirasi perlu diverifikasi",
+            "❌ Stempel resmi tidak terdeteksi dengan jelas",
+            "✅ Nomor registrasi sesuai dengan format standar"
+        ],
+        recommendations: [
+            "Minta perusahaan untuk memperjelas kualitas stempel",
+            "Verifikasi tanggal ekspirasi dengan database resmi",
+            "Konfirmasi nomor registrasi dengan instansi terkait"
+        ],
+        extractedData: {
+            "Nama Perusahaan": project.companyName,
+            "Nomor Sertifikat": "ISPO-2024-001234",
+            "Tanggal Terbit": "15 Maret 2024",
+            "Masa Berlaku": "15 Maret 2027",
+            "Luas Lahan": "2,450 hektar"
+        }
+    };
+
+    return (
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-100 border-2 border-purple-200 rounded-lg p-4 mt-4">
+            <div className="flex items-center justify-between mb-3">
+                <h6 className="text-sm font-bold text-purple-800 flex items-center gap-2">
+                    <Brain className="w-4 h-4" />
+                    AI Document Analysis
+                    <span className="bg-orange-200 text-orange-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                        DEMO
+                    </span>
+                </h6>
+                {!showAnalysis && (
+                    <button
+                        onClick={triggerAnalysis}
+                        disabled={isAnalyzing || !criterion.submittedFileUrl}
+                        className="bg-purple-600 text-white px-3 py-1.5 rounded text-xs hover:bg-purple-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                    >
+                        {isAnalyzing ? (
+                            <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                Analyzing...
+                            </>
+                        ) : (
+                            <>
+                                <Zap className="w-3 h-3" />
+                                Analyze Document
+                            </>
+                        )}
+                    </button>
+                )}
+            </div>
+
+            {!criterion.submittedFileUrl && (
+                <div className="text-xs text-purple-600 bg-purple-50 p-3 rounded border border-purple-200">
+                    <Info className="w-4 h-4 inline mr-1" />
+                    AI analysis akan tersedia setelah dokumen diupload perusahaan
+                </div>
+            )}
+
+            {showAnalysis && (
+                <div className="space-y-4">
+                    {/* Confidence Score */}
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-slate-700">Confidence Score</span>
+                            <span className="text-sm font-bold text-purple-600">{demoAnalysisResult.confidence}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2">
+                            <div 
+                                className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-1000" 
+                                style={{ width: `${demoAnalysisResult.confidence}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between text-xs text-slate-500 mt-1">
+                            <span>Low</span>
+                            <span>High</span>
+                        </div>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                        <h6 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            AI Summary
+                        </h6>
+                        <p className="text-sm text-slate-700 italic">"{demoAnalysisResult.summary}"</p>
+                        <div className="mt-2 flex items-center gap-2">
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+                                {demoAnalysisResult.compliance}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Key Findings */}
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                        <h6 className="text-xs font-bold text-slate-700 mb-2">Key Findings</h6>
+                        <div className="space-y-1">
+                            {demoAnalysisResult.keyFindings.map((finding, index) => (
+                                <div key={index} className="text-xs text-slate-700">
+                                    {finding}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Extracted Data */}
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                        <h6 className="text-xs font-bold text-slate-700 mb-2">Extracted Data (OCR)</h6>
+                        <div className="grid grid-cols-1 gap-1">
+                            {Object.entries(demoAnalysisResult.extractedData).map(([key, value]) => (
+                                <div key={key} className="flex justify-between text-xs">
+                                    <span className="text-slate-600">{key}:</span>
+                                    <span className="text-slate-800 font-medium">{value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Recommendations */}
+                    <div className="bg-white rounded-lg p-3 border border-purple-200">
+                        <h6 className="text-xs font-bold text-slate-700 mb-2">AI Recommendations</h6>
+                        <div className="space-y-1">
+                            {demoAnalysisResult.recommendations.map((rec, index) => (
+                                <div key={index} className="text-xs text-slate-700 flex items-start gap-1">
+                                    <span className="text-blue-500">•</span>
+                                    <span>{rec}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="text-xs text-purple-600 bg-purple-50 p-2 rounded border border-purple-200">
+                        <AlertCircle className="w-3 h-3 inline mr-1" />
+                        <strong>Demo Mode:</strong> Hasil analisis ini adalah simulasi. Pada implementasi real, sistem akan menggunakan OCR dan LLM untuk analisis dokumen sesungguhnya.
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- NDVI Geospatial Analysis Sidebar ---
+const NDVIAnalysisPanel = ({ project }: { project: AuditProject }) => {
+    const [showDetail, setShowDetail] = useState(false);
+
+    const demoNDVIData = {
+        lastUpdate: "2024-01-15",
+        coverageArea: "2,450 ha",
+        averageNDVI: 0.76,
+        healthStatus: "Excellent",
+        deforestationRisk: "Low",
+        complianceScore: 92,
+        trends: [
+            { period: "Jan 2024", ndvi: 0.78, status: "Stable" },
+            { period: "Dec 2023", ndvi: 0.76, status: "Improving" },
+            { period: "Nov 2023", ndvi: 0.74, status: "Stable" },
+        ],
+        alerts: [
+            "Terdeteksi pertumbuhan vegetasi yang baik di sektor A",
+            "Tidak ada indikasi deforestasi dalam 3 bulan terakhir",
+            "Kualitas tutupan lahan sesuai standar ISPO"
+        ]
+    };
+
+    return (
+        <div className="bg-gradient-to-br from-green-50 to-emerald-100 border-2 border-green-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-bold text-green-800 flex items-center gap-2">
+                    <Satellite className="w-4 h-4" />
+                    NDVI Geospatial Analysis
+                    <span className="bg-orange-200 text-orange-800 text-xs px-2 py-0.5 rounded-full font-medium">
+                        DEMO
+                    </span>
+                </h4>
+                <button
+                    onClick={() => setShowDetail(!showDetail)}
+                    className="text-green-600 hover:text-green-700"
+                >
+                    <Eye className="w-4 h-4" />
+                </button>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="space-y-3 mb-4">
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-green-700">NDVI Score</span>
+                        <span className="text-lg font-bold text-green-600">{demoNDVIData.averageNDVI}</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                        <div 
+                            className="h-2 rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-1000" 
+                            style={{ width: `${demoNDVIData.averageNDVI * 100}%` }}
+                        />
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>0.0</span>
+                        <span>1.0</span>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white rounded-lg p-2 border border-green-200 text-center">
+                        <p className="text-xs text-slate-600">Coverage</p>
+                        <p className="text-sm font-bold text-green-600">{demoNDVIData.coverageArea}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-green-200 text-center">
+                        <p className="text-xs text-slate-600">Compliance</p>
+                        <p className="text-sm font-bold text-green-600">{demoNDVIData.complianceScore}%</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-lg p-3 border border-green-200">
+                    <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className="w-4 h-4 text-green-600" />
+                        <span className="text-xs font-medium text-green-700">Status Overview</span>
+                    </div>
+                    <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-600">Health Status:</span>
+                            <span className="text-green-600 font-medium">{demoNDVIData.healthStatus}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-600">Deforestation Risk:</span>
+                            <span className="text-green-600 font-medium">{demoNDVIData.deforestationRisk}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-600">Last Update:</span>
+                            <span className="text-slate-600">{new Date(demoNDVIData.lastUpdate).toLocaleDateString('id-ID')}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {showDetail && (
+                <div className="space-y-3">
+                    {/* Trend Analysis */}
+                    <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <h6 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">
+                            <BarChart3 className="w-3 h-3" />
+                            NDVI Trend (3 Months)
+                        </h6>
+                        <div className="space-y-2">
+                            {demoNDVIData.trends.map((trend, index) => (
+                                <div key={index} className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-600">{trend.period}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">{trend.ndvi}</span>
+                                        <span className={`px-1.5 py-0.5 rounded-full text-xs ${
+                                            trend.status === 'Improving' ? 'bg-green-100 text-green-700' :
+                                            trend.status === 'Stable' ? 'bg-blue-100 text-blue-700' :
+                                            'bg-orange-100 text-orange-700'
+                                        }`}>
+                                            {trend.status}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Alerts */}
+                    <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <h6 className="text-xs font-bold text-slate-700 mb-2">Recent Alerts</h6>
+                        <div className="space-y-1">
+                            {demoNDVIData.alerts.map((alert, index) => (
+                                <div key={index} className="text-xs text-slate-700 flex items-start gap-1">
+                                    <CheckCircle className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
+                                    <span>{alert}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                        <Satellite className="w-3 h-3 inline mr-1" />
+                        <strong>Demo Mode:</strong> Data geospasial ini adalah simulasi. Pada implementasi real, sistem akan mengintegrasikan data satelit untuk monitoring tutupan lahan secara real-time.
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const ProjectSidebar = ({ projects, activeProjectId, setActiveProjectId }: {
     projects: { project: AuditProject, criteria: Criterion[] }[];
@@ -33,89 +337,91 @@ const ProjectSidebar = ({ projects, activeProjectId, setActiveProjectId }: {
     
     return (
         <aside className="w-full lg:w-1/3 xl:w-1/4">
-            <div className="bg-white p-4 rounded-xl shadow-lg h-full flex flex-col">
-                <h3 className="font-bold text-slate-800 px-2 mb-3 text-lg">Proyek Audit Anda</h3>
-                <nav className="space-y-3">
-                    {projects.map(({ project }) => (
-                        <button
-                            key={project.projectId}
-                            onClick={() => setActiveProjectId(project.projectId)}
-                            className={`w-full text-left p-4 rounded-xl transition-all duration-200 ${
-                                activeProjectId === project.projectId 
-                                ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-400 shadow-md' 
-                                : 'bg-slate-50 border-2 border-slate-200 hover:border-blue-300 hover:shadow-md'
-                            }`}
-                        >
-                            <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1">
-                                    <p className="font-bold text-slate-900 mb-1">{project.companyName}</p>
-                                    <p className="text-xs text-slate-500 font-mono">{project.projectId}</p>
-                                </div>
-                                <Building className={`w-5 h-5 ${activeProjectId === project.projectId ? 'text-blue-600' : 'text-slate-400'}`}/>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-slate-600 mt-2">
-                                <Calendar className="w-3 h-3"/>
-                                <span>{new Date(project.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                            </div>
-                        </button>
-                    ))}
-                </nav>
-                
-                {/* NDVI Summary Section - Only show for active project */}
-                {activeProject && (
-                    <>
-                        <div className="mt-4 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-3">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="bg-gradient-to-br from-green-600 to-emerald-700 p-1.5 rounded-lg">
-                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="text-xs font-bold text-green-900">ANALISIS NDVI - {activeProject.project.companyName}</h4>
-                                </div>
-                                <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-semibold">Satelit</span>
-                            </div>
+            <div className="space-y-4">
+                {/* Project List */}
+                <div className="bg-white p-4 rounded-xl shadow-lg">
+                    <h3 className="font-bold text-slate-800 px-2 mb-3 text-lg">Proyek Assignment Anda</h3>
+                    <nav className="space-y-3">
+                        {projects.map(({ project, criteria }) => {
+                            const pendingCount = criteria.filter(c => c.status === 'Menunggu Verifikasi').length;
+                            const completedCount = criteria.filter(c => c.status === 'Disetujui').length;
+                            const hasUploads = criteria.some(c => c.submittedFileUrl || c.submittedText);
+                            
+                            return (
+                                <button
+                                    key={project.projectId}
+                                    onClick={() => setActiveProjectId(project.projectId)}
+                                    className={`w-full text-left p-4 rounded-xl transition-all duration-200 ${
+                                        activeProjectId === project.projectId 
+                                        ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-400 shadow-md' 
+                                        : 'bg-slate-50 border-2 border-slate-200 hover:border-blue-300 hover:shadow-md'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="flex-1">
+                                            <p className="font-bold text-slate-900 mb-1">{project.companyName}</p>
+                                            <p className="text-xs text-slate-500 font-mono">{project.projectId}</p>
+                                            <div className="flex items-center gap-3 mt-2">
+                                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                                                    {pendingCount} pending
+                                                </span>
+                                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                                    {completedCount} done
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <Building className={`w-5 h-5 ${activeProjectId === project.projectId ? 'text-blue-600' : 'text-slate-400'}`}/>
+                                            {hasUploads && (
+                                                <div className="w-2 h-2 bg-green-500 rounded-full mt-1" title="Ada dokumen baru"></div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-600 mt-2">
+                                        <Calendar className="w-3 h-3"/>
+                                        <span>{new Date(project.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </nav>
+
+                    {/* Quick Stats for Active Project */}
+                    {activeProject && (
+                        <div className="mt-4 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4">
+                            <h4 className="text-sm font-bold text-indigo-900 mb-3">Quick Stats</h4>
                             <div className="space-y-2">
-                                <div className="bg-white rounded-lg p-2.5">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="text-xs font-semibold text-slate-600">Indeks Vegetasi</span>
-                                        <span className="text-sm font-bold text-green-700">0.75</span>
-                                    </div>
-                                    <div className="w-full bg-slate-200 rounded-full h-2">
-                                        <div className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full" style={{width: '75%'}}></div>
-                                    </div>
-                                    <p className="text-xs text-slate-500 mt-1">Status: <span className="font-semibold text-green-700">Sehat & Produktif</span></p>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-600">Total Criteria:</span>
+                                    <span className="text-sm font-bold text-slate-800">{activeProject.criteria.length}</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div className="bg-white rounded-lg p-2">
-                                        <p className="text-slate-500">Luas Area</p>
-                                        <p className="font-bold text-slate-800">2,450 ha</p>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-2">
-                                        <p className="text-slate-500">Tutupan Hijau</p>
-                                        <p className="font-bold text-green-700">94.2%</p>
-                                    </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-600">Dengan Upload:</span>
+                                    <span className="text-sm font-bold text-green-600">
+                                        {activeProject.criteria.filter(c => c.submittedFileUrl || c.submittedText).length}
+                                    </span>
                                 </div>
-                                <p className="text-xs text-slate-500 italic mt-1">*Data dari Sentinel-2 (simulasi)</p>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-600">Menunggu Review:</span>
+                                    <span className="text-sm font-bold text-orange-600">
+                                        {activeProject.criteria.filter(c => c.status === 'Menunggu Verifikasi').length}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                        
-                        <button className="mt-3 w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold py-2.5 px-4 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                            </svg>
-                            Lihat Peta Geospasial
-                        </button>
-                    </>
+                    )}
+                </div>
+
+                {/* NDVI Analysis Panel */}
+                {activeProject && (
+                    <NDVIAnalysisPanel project={activeProject.project} />
                 )}
             </div>
         </aside>
     );
 };
 
-// --- Komponen untuk kartu tugas auditor ---
-
+// --- Enhanced Criterion Card with AI Analysis ---
 const CriterionCard = ({ 
     criterion, 
     project, 
@@ -130,107 +436,235 @@ const CriterionCard = ({
     onApprove: (pid: string, cid: string) => void;
 }) => {
     const hasEvidence = criterion.submittedFileUrl || criterion.submittedText;
-    const dummyFiles = [`Dokumen_${criterion.id}_Utama.pdf`, `Lampiran_${criterion.id}_A.docx`];
     
-    // AI Summary untuk dokumen (gimmick untuk OCR & RAG yang akan datang)
-    const aiSummary = `Dokumen menunjukkan bahwa ${project.companyName} telah memenuhi sebagian persyaratan untuk kriteria ${criterion.id}. Berdasarkan analisis dokumen, terdapat bukti implementasi ${principle?.name || 'prinsip terkait'} dalam operasional perusahaan. Namun perlu verifikasi lebih lanjut pada bagian dokumentasi legalitas dan prosedur operasional standar.`;
+    // Get actual file name from URL
+    const getFileName = (url: string) => {
+        if (!url) return 'Unknown File';
+        const parts = url.split('/');
+        const fileName = parts[parts.length - 1];
+        // Remove timestamp prefix for display
+        return fileName.replace(/^\d+_/, '');
+    };
+
+    const getFileType = (url: string) => {
+        if (!url) return 'unknown';
+        const extension = url.split('.').pop()?.toLowerCase();
+        switch (extension) {
+            case 'pdf': return 'PDF Document';
+            case 'doc':
+            case 'docx': return 'Word Document';
+            case 'xls':
+            case 'xlsx': return 'Excel Spreadsheet';
+            case 'jpg':
+            case 'jpeg':
+            case 'png': return 'Image File';
+            default: return 'Document';
+        }
+    };
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'Disetujui':
+                return <CheckCircle className="w-4 h-4 text-green-500" />;
+            case 'Menunggu Verifikasi':
+                return <Clock className="w-4 h-4 text-blue-500" />;
+            case 'Revisi Diperlukan':
+                return <AlertTriangle className="w-4 h-4 text-orange-500" />;
+            default:
+                return <Info className="w-4 h-4 text-slate-400" />;
+        }
+    };
 
     return (
         <div className="bg-white border border-slate-200 rounded-lg transition-all hover:shadow-lg hover:border-blue-300">
             <div className="p-4 border-b border-slate-200">
                 <div className="flex justify-between items-start gap-4">
-                    <div>
-                        <p className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full inline-block mb-2">{principle?.name || 'Prinsip Umum'}</p>
-                        <h4 className="font-semibold text-slate-800">{criterion.name}</h4>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                            <p className="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+                                {principle?.name || 'Prinsip Umum'}
+                            </p>
+                            {hasEvidence && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+                                    📄 Ada Upload
+                                </span>
+                            )}
+                        </div>
+                        <h4 className="font-semibold text-slate-800 mb-1">{criterion.name}</h4>
+                        <p className="text-xs text-slate-500">ID: {criterion.id}</p>
                     </div>
-                    <StatusBadge status={criterion.status} />
+                    <div className="flex flex-col items-end gap-2">
+                        <StatusBadge status={criterion.status} />
+                        {getStatusIcon(criterion.status)}
+                    </div>
                 </div>
             </div>
 
             <div className="p-4 space-y-4">
+                {/* Verification Requirements */}
                 <div>
-                    <h5 className="flex items-center gap-2 text-xs font-bold text-slate-600 mb-2"><ClipboardList className="w-4 h-4 text-slate-400"/>VERIFIER YANG PERLU DICEK</h5>
+                    <h5 className="flex items-center gap-2 text-xs font-bold text-slate-600 mb-2">
+                        <ClipboardList className="w-4 h-4 text-slate-400"/>
+                        VERIFIER YANG PERLU DICEK
+                    </h5>
                     <ul className="list-disc pl-5 space-y-1">
-                        {criterion.verifier.map((item, index) => (<li key={index} className="text-sm text-slate-700">{item}</li>))}
+                        {criterion.verifier.map((item, index) => (
+                            <li key={index} className="text-sm text-slate-700">{item}</li>
+                        ))}
                     </ul>
                 </div>
-                <div className="bg-slate-50 p-3 rounded-lg">
-                    <h5 className="text-xs font-bold text-slate-600 mb-2">BUKTI DARI USER</h5>
+
+                {/* Evidence Section */}
+                <div className="bg-slate-50 p-4 rounded-lg">
+                    <h5 className="text-xs font-bold text-slate-600 mb-3 flex items-center gap-2">
+                        <User className="w-4 h-4 text-slate-400"/>
+                        BUKTI DARI {project.companyName.toUpperCase()}
+                    </h5>
+                    
                     {!hasEvidence ? (
-                        <div className="flex items-center gap-3 text-slate-500 text-sm p-3">
+                        <div className="flex items-center gap-3 text-slate-500 text-sm p-4 bg-white rounded border-2 border-dashed border-slate-300">
                            <Info className="w-5 h-5 flex-shrink-0" /> 
-                           <span>User belum mengirimkan bukti untuk kriteria ini.</span>
+                           <span>Perusahaan belum mengirimkan bukti untuk kriteria ini.</span>
                         </div>
                     ) : (
                         <div className="space-y-4">
+                            {/* Text Evidence */}
                             {criterion.submittedText && (
-                                <div>
-                                    <h6 className="text-xs font-semibold text-slate-500 mb-1">Catatan/Pernyataan User:</h6>
-                                    <div className="flex items-start gap-3">
-                                        <MessageCircle className="w-5 h-5 text-slate-400 flex-shrink-0 mt-1" />
-                                        <p className="text-sm text-slate-800 italic bg-white p-2 rounded border w-full">"{criterion.submittedText}"</p>
+                                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                                    <h6 className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+                                        <MessageCircle className="w-3 h-3"/>
+                                        Catatan/Pernyataan:
+                                    </h6>
+                                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                                        <p className="text-sm text-slate-800 italic">"{criterion.submittedText}"</p>
                                     </div>
-                                </div>
-                            )}
-                            {criterion.submittedFileUrl && (
-                                <div>
-                                    <h6 className="text-xs font-semibold text-slate-500 mb-2">Berkas Terunggah:</h6>
-                                    <ul className="space-y-2">
-                                        {dummyFiles.map(file => (
-                                            <li key={file} className="flex items-center">
-                                                <a href={criterion.submittedFileUrl!} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:underline">
-                                                    <Paperclip className="w-4 h-4"/> {file}
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
                                 </div>
                             )}
                             
-                            {/* AI Summary Section */}
-                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-4 mt-3">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-gradient-to-br from-purple-500 to-indigo-600 p-2 rounded-lg">
-                                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                        </svg>
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <h6 className="text-xs font-bold text-purple-900">RINGKASAN AI</h6>
-                                            <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-semibold">Beta</span>
+                            {/* File Evidence */}
+                            {criterion.submittedFileUrl && (
+                                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                                    <h6 className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+                                        <Paperclip className="w-3 h-3"/>
+                                        Dokumen Terupload:
+                                    </h6>
+                                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                                <FileIcon className="w-6 h-6 text-green-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-slate-800">
+                                                    {getFileName(criterion.submittedFileUrl)}
+                                                </p>
+                                                <p className="text-xs text-slate-500">
+                                                    {getFileType(criterion.submittedFileUrl)} • 
+                                                    Uploaded by {project.companyName}
+                                                </p>
+                                                <p className="text-xs text-green-600 font-medium mt-1">
+                                                    ✓ Siap untuk direview
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <a
+                                                    href={criterion.submittedFileUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                                >
+                                                    <Eye className="w-3 h-3" />
+                                                    View
+                                                </a>
+                                                <a
+                                                    href={criterion.submittedFileUrl}
+                                                    download
+                                                    className="bg-green-600 text-white px-3 py-1.5 rounded text-xs hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                >
+                                                    <Download className="w-3 h-3" />
+                                                    Download
+                                                </a>
+                                            </div>
                                         </div>
-                                        <p className="text-sm text-slate-700 leading-relaxed">{aiSummary}</p>
-                                        <p className="text-xs text-slate-500 mt-2 italic">*Fitur OCR & RAG dalam pengembangan - ringkasan ini adalah simulasi</p>
                                     </div>
+                                </div>
+                            )}
+                            
+                            {/* Timeline */}
+                            <div className="bg-white border border-slate-200 rounded-lg p-3">
+                                <h6 className="text-xs font-semibold text-slate-600 mb-2">Timeline Review:</h6>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span className="text-slate-600">
+                                            Dokumen diupload • {new Date().toLocaleDateString('id-ID')}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        <span className="text-slate-600">
+                                            Status: {criterion.status}
+                                        </span>
+                                    </div>
+                                    {criterion.auditorNotes && (
+                                        <div className="flex items-start gap-2 text-xs">
+                                            <div className="w-2 h-2 bg-orange-500 rounded-full mt-1"></div>
+                                            <div>
+                                                <span className="text-slate-600 font-medium">Feedback Auditor:</span>
+                                                <p className="text-slate-600 italic">"{criterion.auditorNotes}"</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
+
+                {/* AI Analysis Panel */}
+                {hasEvidence && (
+                    <AIAnalysisPanel criterion={criterion} project={project} />
+                )}
             </div>
             
-            <div className="bg-slate-100 p-3 flex justify-end items-center space-x-2 rounded-b-lg">
-                <button 
-                    onClick={() => onFeedback(criterion, project)} 
-                    className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg text-amber-800 bg-amber-100 hover:bg-amber-200 transition-colors"
-                >
-                    <MessageSquare className="w-4 h-4" /> Beri Feedback
-                </button>
-                <button 
-                    onClick={() => onApprove(project.projectId, criterion.id)} 
-                    className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg text-green-800 bg-green-100 hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!hasEvidence || criterion.status === 'Disetujui'}
-                >
-                    <CheckSquare className="w-4 h-4" /> Setujui
-                </button>
+            {/* Action Buttons */}
+            <div className="bg-slate-100 p-4 flex justify-between items-center rounded-b-lg">
+                <div className="text-xs text-slate-500">
+                    {hasEvidence ? (
+                        <span className="flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                            Siap direview
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            Menunggu upload dari perusahaan
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center space-x-2">
+                    <button 
+                        onClick={() => onFeedback(criterion, project)} 
+                        className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg text-amber-800 bg-amber-100 hover:bg-amber-200 transition-colors"
+                        disabled={!hasEvidence}
+                    >
+                        <MessageSquare className="w-4 h-4" /> 
+                        Feedback
+                    </button>
+                    <button 
+                        onClick={() => onApprove(project.projectId, criterion.id)} 
+                        className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg text-green-800 bg-green-100 hover:bg-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!hasEvidence || criterion.status === 'Disetujui'}
+                    >
+                        <CheckSquare className="w-4 h-4" /> 
+                        {criterion.status === 'Disetujui' ? 'Approved' : 'Approve'}
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
 
-
-// --- Komponen utama untuk dashboard auditor ---
+// --- Main Auditor Dashboard Component ---
 export default function AuditorDashboard() {
     const [currentUser, setCurrentUser] = useState<Auditor | null>(null);
     const [projects, setProjects] = useState<AuditProject[]>([]);
@@ -261,8 +695,7 @@ export default function AuditorDashboard() {
 
                 // Fetch auditors
                 const auditorsData = await getAuditors();
-                console.log("Auditors from DB:", auditorsData);
-                console.log("Looking for ID:", loggedInAuditorId);
+                console.log("🔍 Looking for auditor ID:", loggedInAuditorId);
                 
                 // Coba cari dengan berbagai format ID
                 const foundUser = auditorsData.find(auditor => 
@@ -272,12 +705,13 @@ export default function AuditorDashboard() {
                 );
                 
                 if (!foundUser) {
-                    console.error("User not found. Available IDs:", auditorsData.map(a => a.id));
+                    console.error("❌ Auditor not found. Available IDs:", auditorsData.map(a => a.id));
                     setError(`Data auditor tidak ditemukan (ID: ${loggedInAuditorId}). Silakan login ulang.`);
                     setLoading(false);
                     return;
                 }
                 
+                console.log("✅ Auditor found:", foundUser.name);
                 setCurrentUser(foundUser);
 
                 // Fetch principles
@@ -288,7 +722,7 @@ export default function AuditorDashboard() {
                 const projectsData = await getAuditProjects();
                 setProjects(projectsData);
 
-                // Filter assignments untuk auditor ini
+                // Filter assignments untuk auditor ini - hanya criteria yang di-assign ke dia
                 const assignments = projectsData.map(project => {
                     const criteriaForAuditor = Object.values(project.principles).flat().filter(
                         criterion => criterion.assignedAuditorId === loggedInAuditorId
@@ -296,6 +730,7 @@ export default function AuditorDashboard() {
                     return { project, criteria: criteriaForAuditor };
                 }).filter(assignment => assignment.criteria.length > 0);
 
+                console.log("📋 Assignments found:", assignments.length);
                 setMyAssignments(assignments);
                 
                 if (assignments.length > 0 && !activeProjectId) {
@@ -315,8 +750,13 @@ export default function AuditorDashboard() {
 
     // Helper untuk mendapatkan principle dari criterion ID
     const getPrincipleForCriterion = (criterionId: string): Principle | undefined => {
-        const principleId = `P${criterionId.split('.')[0]}`;
-        return principles.find(p => p.id === principleId);
+        // More robust principle ID extraction
+        for (const principle of principles) {
+            if (principle.criteria.some(c => c.id === criterionId)) {
+                return principle;
+            }
+        }
+        return principles[0]; // fallback
     };
 
     const handleUpdateStatus = async (
@@ -331,28 +771,15 @@ export default function AuditorDashboard() {
                 updates.auditorNotes = notes;
             }
 
+            console.log("🔄 Updating criterion:", { projectId, criterionId, newStatus, notes });
             const success = await updateAuditCriterion(projectId, criterionId, updates);
             
             if (success) {
-                // Update local state
-                setProjects(currentProjects =>
-                    currentProjects.map(project => {
-                        if (project.projectId !== projectId) return project;
-                        const updatedPrinciples: AuditProject['principles'] = { ...project.principles };
-                        for (const key in updatedPrinciples) {
-                            const pKey = key as keyof typeof updatedPrinciples;
-                            updatedPrinciples[pKey] = updatedPrinciples[pKey].map(c => 
-                                c.id === criterionId 
-                                ? { ...c, status: newStatus, auditorNotes: notes !== null ? notes : c.auditorNotes } 
-                                : c
-                            );
-                        }
-                        return { ...project, principles: updatedPrinciples };
-                    })
-                );
-
-                // Refresh assignments
+                console.log("✅ Update successful");
+                // Refresh data
                 const updatedProjects = await getAuditProjects();
+                setProjects(updatedProjects);
+                
                 const loggedInAuditorId = localStorage.getItem("auditorId");
                 const assignments = updatedProjects.map(project => {
                     const criteriaForAuditor = Object.values(project.principles).flat().filter(
@@ -361,6 +788,8 @@ export default function AuditorDashboard() {
                     return { project, criteria: criteriaForAuditor };
                 }).filter(assignment => assignment.criteria.length > 0);
                 setMyAssignments(assignments);
+                
+                alert(`Status berhasil diupdate menjadi: ${newStatus}`);
             } else {
                 alert("Gagal mengupdate status kriteria");
             }
@@ -378,15 +807,17 @@ export default function AuditorDashboard() {
     };
     
     const submitFeedback = () => {
-        if (selectedCriterion && currentProject) {
+        if (selectedCriterion && currentProject && feedbackText.trim()) {
             handleUpdateStatus(currentProject.projectId, selectedCriterion.id, "Revisi Diperlukan", feedbackText);
+            setIsModalOpen(false);
+        } else {
+            alert("Mohon isi feedback terlebih dahulu");
         }
-        setIsModalOpen(false);
     };
     
     const handleApprove = (projectId: string, criterionId: string) => {
-        if(confirm("Anda yakin ingin menyetujui kriteria ini?")){
-            handleUpdateStatus(projectId, criterionId, "Disetujui", "Telah diverifikasi dan disetujui.");
+        if(confirm("Anda yakin ingin menyetujui kriteria ini? Aksi ini tidak dapat dibatalkan.")){
+            handleUpdateStatus(projectId, criterionId, "Disetujui", "Dokumen telah diverifikasi dan disetujui oleh auditor.");
         }
     };
 
@@ -395,36 +826,81 @@ export default function AuditorDashboard() {
     const renderProjectDetails = () => {
         if (!activeProjectData) {
             return (
-                <div className="bg-white p-10 rounded-xl shadow-lg text-center text-slate-500">
-                    <p className="font-semibold">Pilih proyek dari sidebar untuk melihat detail tugas.</p>
+                <div className="bg-white p-10 rounded-xl shadow-lg text-center">
+                    <div className="text-slate-400 text-6xl mb-4">📋</div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Tidak Ada Assignment</h3>
+                    <p className="text-slate-500 mb-4">
+                        Anda belum memiliki project yang di-assign. Hubungi admin untuk mendapatkan assignment audit.
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        Refresh Page
+                    </button>
                 </div>
             );
         }
 
         const deadline = new Date(activeProjectData.project.deadline);
-        const startDate = new Date(deadline);
-        startDate.setMonth(startDate.getMonth() - 3);
+        const totalCriteria = activeProjectData.criteria.length;
+        const withUploads = activeProjectData.criteria.filter(c => c.submittedFileUrl || c.submittedText).length;
+        const pendingReview = activeProjectData.criteria.filter(c => c.status === 'Menunggu Verifikasi').length;
+        const approved = activeProjectData.criteria.filter(c => c.status === 'Disetujui').length;
 
         return (
             <div className="bg-white p-6 rounded-xl shadow-lg space-y-6">
+                {/* Project Header */}
                 <div className="pb-4 border-b border-slate-200">
-                    <p className="text-sm text-slate-500">Proyek Aktif</p>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center mb-3">
-                        <Building className="w-6 h-6 mr-3 text-slate-400"/>{activeProjectData.project.companyName}
-                    </h2>
-                    <div className="flex items-center gap-6 text-sm">
-                        <div className="flex items-center text-gray-600">
-                            <PlayCircle className="w-4 h-4 mr-2 text-green-500"/>
-                            <strong>Mulai:</strong><span className="ml-1">{startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    <div className="flex items-center justify-between mb-3">
+                        <div>
+                            <p className="text-sm text-slate-500">Proyek Assignment</p>
+                            <h2 className="text-2xl font-bold text-slate-900 flex items-center">
+                                <Building className="w-6 h-6 mr-3 text-blue-500"/>
+                                {activeProjectData.project.companyName}
+                            </h2>
+                            <p className="text-sm text-slate-600">{activeProjectData.project.projectId}</p>
                         </div>
-                        <div className="flex items-center text-red-600">
-                            <Flag className="w-4 h-4 mr-2"/>
-                            <strong>Deadline:</strong><span className="ml-1 font-semibold">{deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                        <div className="text-right">
+                            <div className="flex items-center text-red-600 mb-1">
+                                <Flag className="w-4 h-4 mr-2"/>
+                                <span className="text-sm font-semibold">
+                                    Deadline: {deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                {Math.ceil((deadline.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} hari tersisa
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Progress Stats */}
+                    <div className="grid grid-cols-4 gap-4 mt-4">
+                        <div className="bg-slate-50 p-3 rounded-lg text-center">
+                            <p className="text-lg font-bold text-slate-800">{totalCriteria}</p>
+                            <p className="text-xs text-slate-500">Total Criteria</p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded-lg text-center">
+                            <p className="text-lg font-bold text-green-600">{withUploads}</p>
+                            <p className="text-xs text-green-600">Dengan Upload</p>
+                        </div>
+                        <div className="bg-orange-50 p-3 rounded-lg text-center">
+                            <p className="text-lg font-bold text-orange-600">{pendingReview}</p>
+                            <p className="text-xs text-orange-600">Pending Review</p>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded-lg text-center">
+                            <p className="text-lg font-bold text-blue-600">{approved}</p>
+                            <p className="text-xs text-blue-600">Approved</p>
                         </div>
                     </div>
                 </div>
+
+                {/* Criteria List */}
                 <div>
-                    <h3 className="font-semibold text-slate-800 flex items-center mb-4"><ListChecks className="w-5 h-5 mr-3 text-slate-400"/>Tugas Penilaian Anda</h3>
+                    <h3 className="font-semibold text-slate-800 flex items-center mb-4">
+                        <ListChecks className="w-5 h-5 mr-3 text-slate-400"/>
+                        Criteria Assignment Anda ({activeProjectData.criteria.length})
+                    </h3>
                     <div className="space-y-4">
                         {activeProjectData.criteria.map(criterion => (
                             <CriterionCard 
@@ -447,7 +923,7 @@ export default function AuditorDashboard() {
             <div className="bg-slate-100 min-h-screen flex items-center justify-center">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-slate-600">Memuat data dari database...</p>
+                    <p className="text-slate-600">Memuat assignment Anda...</p>
                 </div>
             </div>
         );
@@ -464,7 +940,7 @@ export default function AuditorDashboard() {
                         <button 
                             onClick={() => {
                                 localStorage.removeItem("auditorId");
-                                window.location.href = "/login";
+                                window.location.href = "/login/auditor";
                             }}
                             className="bg-slate-600 text-white px-6 py-2 rounded-lg hover:bg-slate-700 transition-colors"
                         >
@@ -486,7 +962,7 @@ export default function AuditorDashboard() {
         return (
             <div className="bg-slate-100 min-h-screen flex items-center justify-center">
                 <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
-                    <p className="text-slate-600">Silakan login terlebih dahulu</p>
+                    <p className="text-slate-600">Silakan login terlebih dahulu sebagai auditor</p>
                 </div>
             </div>
         );
@@ -497,31 +973,44 @@ export default function AuditorDashboard() {
             <div className="bg-slate-100 min-h-screen p-4 sm:p-6 lg:p-8">
                 <div className="max-w-screen-xl mx-auto space-y-8">
                     <Header currentUser={currentUser} />
-                    <div className="flex flex-col lg:flex-row gap-8">
-                        <ProjectSidebar projects={myAssignments} activeProjectId={activeProjectId} setActiveProjectId={setActiveProjectId} />
-                        <main className="w-full lg:w-2/3 xl:w-3/4">
-                            {renderProjectDetails()}
-                        </main>
-                    </div>
+                    {myAssignments.length === 0 ? (
+                        renderProjectDetails()
+                    ) : (
+                        <div className="flex flex-col lg:flex-row gap-8">
+                            <ProjectSidebar projects={myAssignments} activeProjectId={activeProjectId} setActiveProjectId={setActiveProjectId} />
+                            <main className="w-full lg:w-2/3 xl:w-3/4">
+                                {renderProjectDetails()}
+                            </main>
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Feedback Modal */}
             {isModalOpen && selectedCriterion && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 w-full max-w-lg space-y-4 shadow-2xl">
                         <div className="flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-slate-800">Feedback untuk: {selectedCriterion.name}</h3>
+                            <h3 className="font-bold text-lg text-slate-800">
+                                Feedback untuk: {selectedCriterion.name}
+                            </h3>
                             <button onClick={() => setIsModalOpen(false)}>
                                 <X className="w-5 h-5 text-gray-500"/>
                             </button>
                         </div>
                         <div>
-                            <label className="text-sm font-semibold text-slate-900">Catatan Revisi:</label>
+                            <label className="text-sm font-semibold text-slate-900">
+                                Catatan Revisi untuk {currentProject?.companyName}:
+                            </label>
                             <textarea 
                                 value={feedbackText} 
                                 onChange={(e) => setFeedbackText(e.target.value)} 
                                 className="mt-1 w-full border-2 border-gray-300 rounded-lg p-3 h-32 text-slate-800" 
-                                placeholder="Contoh: Mohon lampirkan dokumen SIUP yang terbaru."
+                                placeholder="Contoh: Mohon lampirkan dokumen SIUP yang terbaru dan pastikan stempel perusahaan tercantum jelas."
                             />
+                            <p className="text-xs text-slate-500 mt-1">
+                                Feedback ini akan dikirim ke perusahaan untuk perbaikan dokumen.
+                            </p>
                         </div>
                         <div className="flex justify-end gap-3">
                             <button 
@@ -533,6 +1022,7 @@ export default function AuditorDashboard() {
                             <button 
                                 onClick={submitFeedback} 
                                 className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700"
+                                disabled={!feedbackText.trim()}
                             >
                                 Kirim Feedback
                             </button>

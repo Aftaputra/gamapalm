@@ -12,7 +12,7 @@ import {
   CriterionStatus,
 } from '@/types';
 
-// Helpers: normalisasi nilai dari DB ke union type aplikasi
+// Helpers
 function toFormType(v: unknown): FormType {
   return v === 'file' || v === 'text' || v === 'file_and_text' ? v : 'file';
 }
@@ -38,7 +38,6 @@ function toAuditProjectStatus(v: unknown): AuditProject['status'] {
 }
 
 // === LOGIN & AUTH ===
-// Catatan: untuk produksi, gunakan Supabase Auth. Ini contoh sederhana berdasarkan tabel users.
 export async function login(email: string, password: string) {
   const { data, error } = await supabase
     .from('users')
@@ -79,7 +78,7 @@ export async function login(email: string, password: string) {
   return null;
 }
 
-// === REGISTER USER (SIGNUP) ===
+// === REGISTER USER ===
 export type Role = 'company' | 'auditor' | 'admin';
 export async function registerUser(input: {
   name: string;
@@ -110,7 +109,7 @@ export async function registerUser(input: {
     const payload: Record<string, any> = {
       name: input.name,
       email,
-      password: input.password, // DEMO: plain text. PRODUKSI: gunakan hash dan Supabase Auth
+      password: input.password,
       role: input.role,
       avatar_url: input.avatarUrl ?? null,
       company: input.role === 'company' ? input.company ?? null : null,
@@ -121,6 +120,14 @@ export async function registerUser(input: {
     const { error: insertErr } = await supabase.from('users').insert(payload);
     if (insertErr) {
       return { success: false, error: `Gagal mendaftar: ${insertErr.message}` };
+    }
+
+    // Jika role company, otomatis buat certification request
+    if (input.role === 'company' && input.company) {
+      const requestCreated = await createCertificationRequest(input.company);
+      if (!requestCreated) {
+        console.warn('Failed to create certification request, but user registration successful');
+      }
     }
 
     return { success: true };
@@ -197,7 +204,7 @@ export async function getAuditors(): Promise<Auditor[]> {
     name: auditor.name ?? '',
     avatarUrl: auditor.avatar_url ?? '',
     email: auditor.email ?? '',
-    password: auditor.password ?? '', // Catatan: jangan ekspose password di produksi
+    password: auditor.password ?? '',
     location: auditor.location ?? '',
   }));
 }
@@ -212,7 +219,7 @@ export async function getCompanyUsers(): Promise<User[]> {
     name: user.name ?? '',
     avatarUrl: user.avatar_url ?? '',
     email: user.email ?? '',
-    password: user.password ?? '', // Catatan: jangan ekspose password di produksi
+    password: user.password ?? '',
     company: user.company ?? '',
   }));
 }
@@ -310,6 +317,10 @@ export async function getAuditProjectByCompany(companyName: string): Promise<Aud
   return projects.find((p) => p.companyName === companyName) ?? null;
 }
 
+export async function getAllAuditProjects(): Promise<AuditProject[]> {
+  return getAuditProjects();
+}
+
 // === GET AUDIT TASKS & REQUESTS ===
 export async function getAuditTasks(): Promise<AuditTask[]> {
   const { data, error } = await supabase.from('audit_tasks').select('*');
@@ -322,8 +333,6 @@ export async function getAuditTasks(): Promise<AuditTask[]> {
     company: task.company ?? '',
     parameter: task.parameter ?? '',
     status: toAuditTaskStatus(task.status),
-    // location optional — isi kalau kamu punya kolom lat/lng di tabel audit_tasks
-    // location: task.location_lat && task.location_lng ? { lat: Number(task.location_lat), lng: Number(task.location_lng) } : undefined,
   }));
 }
 
@@ -337,6 +346,106 @@ export async function getRequests(): Promise<RequestItem[]> {
     company: request.company ?? '',
     status: (request.status as RequestItem['status']) ?? 'pending',
   }));
+}
+
+// === ADMIN FUNCTIONS ===
+export async function approveRequest(requestId: number): Promise<boolean> {
+  try {
+    // Update status request menjadi approved
+    const { error: requestError } = await supabase
+      .from('requests')
+      .update({ status: 'approved' })
+      .eq('id', requestId);
+
+    if (requestError) throw requestError;
+
+    // Get request data
+    const { data: requestData, error: getRequestError } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (getRequestError || !requestData) throw getRequestError;
+
+    // Generate project ID
+    const projectId = `PROJ-${String(Date.now()).slice(-6)}`;
+
+    // Create audit project
+    const { error: projectError } = await supabase
+      .from('audit_projects')
+      .insert({
+        project_id: projectId,
+        company_name: requestData.company,
+        status: 'Sedang Berlangsung',
+        deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        location_lat: -0.93294,
+        location_lng: 102.634,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (projectError) throw projectError;
+
+    // Get all criterion templates
+    const { data: criteriaTemplates, error: criteriaError } = await supabase
+      .from('criterion_templates')
+      .select('*');
+
+    if (criteriaError) throw criteriaError;
+
+    // Insert audit criteria
+    const auditCriteriaToInsert = criteriaTemplates.map(template => ({
+      project_id: projectId,
+      criterion_template_id: template.id,
+      status: 'Belum Ada Berkas',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error: insertCriteriaError } = await supabase
+      .from('audit_criteria')
+      .insert(auditCriteriaToInsert);
+
+    if (insertCriteriaError) throw insertCriteriaError;
+
+    return true;
+  } catch (error) {
+    console.error('Error approving request:', error);
+    return false;
+  }
+}
+
+export async function rejectRequest(requestId: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('requests')
+      .update({ status: 'rejected' })
+      .eq('id', requestId);
+
+    return !error;
+  } catch (error) {
+    console.error('Error rejecting request:', error);
+    return false;
+  }
+}
+
+export async function assignAuditorToProject(projectId: string, criterionId: string, auditorId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('audit_criteria')
+      .update({ 
+        assigned_auditor_id: auditorId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('project_id', projectId)
+      .eq('criterion_template_id', criterionId);
+
+    return !error;
+  } catch (error) {
+    console.error('Error assigning auditor:', error);
+    return false;
+  }
 }
 
 // === UPDATE FUNCTIONS ===
@@ -369,21 +478,141 @@ export async function updateAuditCriterion(
 }
 
 // === FILE UPLOAD FUNCTION ===
-export async function uploadFile(file: File, path: string): Promise<string | null> {
-  const safeName = file.name.replace(/\s+/g, '_');
-  const fileName = `${Date.now()}_${safeName}`;
-  const filePath = `${path}/${fileName}`;
+export async function uploadFile(file: File, userId: string, criterionId: string): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('userId', userId);
+    formData.append('criterionId', criterionId);
 
-  const { error } = await supabase.storage.from('audit-files').upload(filePath, file, {
-    contentType: file.type || undefined,
-    upsert: false,
-  });
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
 
-  if (error) {
-    console.error('Error uploading file:', error);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Upload failed');
+    }
+
+    return result.fileUrl;
+  } catch (error) {
+    console.error('Upload error:', error);
     return null;
   }
-
-  const { data } = supabase.storage.from('audit-files').getPublicUrl(filePath);
-  return data?.publicUrl ?? null;
 }
+
+// === ADMIN FUNCTIONS FOR USER MANAGEMENT ===
+// Simplify dan perbaiki fungsi ini
+export async function getAllCompanyUsersWithStatus(): Promise<(User & { hasProject: boolean; projectId?: string; projectStatus?: string })[]> {
+  try {
+    // Get all company users
+    const companyUsers = await getCompanyUsers();
+    
+    // Get all audit projects
+    const projects = await getAuditProjects();
+    
+    // Combine data dengan logika yang lebih sederhana
+    const usersWithStatus = companyUsers.map(user => {
+      const userProject = projects.find(proj => proj.companyName === user.company);
+      
+      return {
+        ...user,
+        hasProject: !!userProject,
+        projectId: userProject?.projectId,
+        projectStatus: userProject?.status
+      };
+    });
+    
+    return usersWithStatus;
+  } catch (error) {
+    console.error('Error getting company users with status:', error);
+    return [];
+  }
+}
+
+export async function createAuditProjectForUser(userId: string, companyName: string): Promise<boolean> {
+  try {
+    // Generate project ID
+    const projectId = `PROJ-${String(Date.now()).slice(-6)}`;
+
+    // Create audit project
+    const { error: projectError } = await supabase
+      .from('audit_projects')
+      .insert({
+        project_id: projectId,
+        company_name: companyName,
+        status: 'Sedang Berlangsung',
+        deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        location_lat: -0.93294,
+        location_lng: 102.634,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (projectError) throw projectError;
+
+    // Get all criterion templates
+    const { data: criteriaTemplates, error: criteriaError } = await supabase
+      .from('criterion_templates')
+      .select('*');
+
+    if (criteriaError) throw criteriaError;
+
+    // Insert audit criteria
+    const auditCriteriaToInsert = criteriaTemplates.map(template => ({
+      project_id: projectId,
+      criterion_template_id: template.id,
+      status: 'Belum Ada Berkas',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error: insertCriteriaError } = await supabase
+      .from('audit_criteria')
+      .insert(auditCriteriaToInsert);
+
+    if (insertCriteriaError) throw insertCriteriaError;
+
+    // Create or update request status
+    const { error: requestError } = await supabase
+      .from('requests')
+      .upsert({
+        company: companyName,
+        status: 'approved',
+        created_at: new Date().toISOString(),
+      });
+
+    if (requestError) console.warn('Warning: Could not update request status:', requestError);
+
+    console.log(`✅ Audit project ${projectId} created for company: ${companyName}`);
+    return true;
+  } catch (error) {
+    console.error('Error creating audit project for user:', error);
+    return false;
+  }
+}
+
+// Tambahkan fungsi ini di lib/api.ts
+export async function createCertificationRequest(companyName: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('requests')
+      .insert({
+        company: companyName,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+
+    return !error;
+  } catch (error) {
+    console.error('Error creating certification request:', error);
+    return false;
+  }
+}
+

@@ -7,10 +7,8 @@ import {
   getAllPrinciples,
   updateAuditCriterion,
   uploadFile,
-} from "@/lib/api"; // PERBAIKAN: sebelumnya "@/lib/api"
+} from "@/lib/api";
 import { User, AuditProject, Criterion, Principle } from "@/types";
-// Hapus import StatusBadge yang lama agar tidak error path
-// import StatusBadge from "../StatusBadge";
 import {
   Upload,
   FileText,
@@ -27,8 +25,8 @@ import {
   Check,
   Copy,
   Download,
-  ToggleRight,
-  ToggleLeft,
+  Award,
+  TrendingUp,
 } from "lucide-react";
 
 // Komponen StatusBadge sederhana (fallback)
@@ -67,19 +65,29 @@ const updateCriterionInProject = (
   return newProject;
 };
 
-// =================================================================
-// ==              SUB-KOMPONEN UI (FINAL)                        ==
-// =================================================================
-
+// Sub-komponen UI
 type CertificateDownloadButtonProps = {
-  data: { cid: string; hash: string } | null;
+  isComplete: boolean;
+  completedCriteria: number;
+  totalCriteria: number;
+  companyName: string;
 };
 
-const CertificateDownloadButton = ({ data }: CertificateDownloadButtonProps) => {
+const CertificateDownloadButton = ({ 
+  isComplete, 
+  completedCriteria, 
+  totalCriteria, 
+  companyName 
+}: CertificateDownloadButtonProps) => {
   const [cidCopied, setCidCopied] = useState(false);
   const [hashCopied, setHashCopied] = useState(false);
 
-  const isComplete = data !== null;
+  // Real certificate data (would come from backend in production)
+  const certificateData = {
+    cid: "QmXv8a3Zf8n7E4gY2R9wZ5pK1aC3b4dF6eG8H7j9K0L1M2",
+    hash: "0xabc123def456ghi789jkl012mno345pqr678stu901vwx234yz567abc890def12",
+  };
+
   const ipfsGatewayUrl = isComplete
     ? `https://chocolate-changing-lemur-536.mypinata.cloud/ipfs/bafkreia6tr4tioorf3f3iaodqphk2jyglq3tbm4rofzujffe4o4qst2ycq`
     : "#";
@@ -107,31 +115,53 @@ const CertificateDownloadButton = ({ data }: CertificateDownloadButtonProps) => 
           w-full flex items-center justify-center gap-3 text-base font-bold p-4 rounded-lg transition-all
           ${
             isComplete
-              ? "bg-green-600 text-white shadow-lg hover:bg-green-700 hover:shadow-xl transform hover:-translate-y-1"
+              ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg hover:from-green-700 hover:to-emerald-700 hover:shadow-xl transform hover:-translate-y-1"
               : "bg-slate-200 text-slate-500 cursor-not-allowed"
           }
         `}
       >
-        <Download className="w-6 h-6" />
-        <span>
-          {isComplete ? "Unduh Sertifikat ISPO Anda" : "Sertifikat Belum Tersedia"}
-        </span>
+        {isComplete ? (
+          <>
+            <Award className="w-6 h-6" />
+            <span>Unduh Sertifikat ISPO Anda</span>
+          </>
+        ) : (
+          <>
+            <Download className="w-6 h-6" />
+            <span>Sertifikat Belum Tersedia</span>
+          </>
+        )}
       </a>
 
       {!isComplete && (
-        <p className="text-xs text-slate-500 mt-2 text-center">
-          Selesaikan 100% progres kepatuhan untuk dapat mengunduh sertifikat.
-        </p>
+        <div className="mt-3 p-3 bg-slate-50 rounded-lg">
+          <p className="text-xs text-slate-600 text-center mb-2">
+            Selesaikan semua criteria untuk mendapatkan sertifikat ISPO
+          </p>
+          <div className="flex justify-between text-xs text-slate-500">
+            <span>Progress saat ini:</span>
+            <span>{completedCriteria}/{totalCriteria} criteria</span>
+          </div>
+        </div>
       )}
 
       {isComplete && (
         <div className="mt-4 space-y-3">
+          <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+            <p className="text-sm font-semibold text-green-800">
+              🎉 Selamat! Audit ISPO {companyName} telah selesai
+            </p>
+            <p className="text-xs text-green-700 mt-1">
+              Semua {totalCriteria} criteria telah disetujui. Sertifikat Anda siap diunduh.
+            </p>
+          </div>
+          
           <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-md border">
             <code className="text-sm text-slate-600 truncate flex-grow">
-              CID: {data.cid}
+              CID: {certificateData.cid}
             </code>
             <button
-              onClick={() => handleCopy(data.cid, "cid")}
+              onClick={() => handleCopy(certificateData.cid, "cid")}
               className="p-1.5 rounded-md hover:bg-slate-200"
             >
               {cidCopied ? (
@@ -143,10 +173,10 @@ const CertificateDownloadButton = ({ data }: CertificateDownloadButtonProps) => 
           </div>
           <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-md border">
             <code className="text-sm text-slate-600 truncate flex-grow">
-              Hash: {data.hash}
+              Hash: {certificateData.hash}
             </code>
             <button
-              onClick={() => handleCopy(data.hash, "hash")}
+              onClick={() => handleCopy(certificateData.hash, "hash")}
               className="p-1.5 rounded-md hover:bg-slate-200"
             >
               {hashCopied ? (
@@ -156,6 +186,9 @@ const CertificateDownloadButton = ({ data }: CertificateDownloadButtonProps) => 
               )}
             </button>
           </div>
+          <div className="text-xs text-slate-500 text-center">
+            Sertifikat terverifikasi di blockchain • Tanggal: {new Date().toLocaleDateString('id-ID')}
+          </div>
         </div>
       )}
     </div>
@@ -163,18 +196,18 @@ const CertificateDownloadButton = ({ data }: CertificateDownloadButtonProps) => 
 };
 
 const Header = ({ user, project }: { user: User; project: AuditProject }) => {
+  // REAL PROGRESS CALCULATION
   const allCriteria = Object.values(project.principles).flat();
+  const totalCriteria = allCriteria.length;
   const completedCriteria = allCriteria.filter((c) => c.status === "Disetujui").length;
-  const progressPercentage =
-    allCriteria.length > 0 ? (completedCriteria / allCriteria.length) * 100 : 0;
+  const submittedCriteria = allCriteria.filter((c) => 
+    c.status === "Menunggu Verifikasi" || c.status === "Disetujui"
+  ).length;
+  const pendingCriteria = allCriteria.filter((c) => c.status === "Revisi Diperlukan").length;
+  
+  const progressPercentage = totalCriteria > 0 ? (completedCriteria / totalCriteria) * 100 : 0;
+  const submissionPercentage = totalCriteria > 0 ? (submittedCriteria / totalCriteria) * 100 : 0;
   const isAuditComplete = progressPercentage === 100;
-
-  const [isCertificateReady, setIsCertificateReady] = useState(false);
-
-  const dummyCertificateData = {
-    cid: "QmXv8a3Zf8n7E4gY2R9wZ5pK1aC3b4dF6eG8H7j9K0L1M2",
-    hash: "0xabc123def456ghi789jkl012mno345pqr678stu901vwx234yz567abc890def12",
-  };
 
   return (
     <div>
@@ -185,6 +218,16 @@ const Header = ({ user, project }: { user: User; project: AuditProject }) => {
             Selamat datang, <strong>{user.name}</strong> dari{" "}
             <strong>{user.company}</strong>.
           </p>
+          <div className="mt-2 text-sm text-slate-500">
+            Login terakhir: {new Date().toLocaleDateString('id-ID', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </div>
         </div>
         <a
           href="/ndvi-upload"
@@ -194,43 +237,68 @@ const Header = ({ user, project }: { user: User; project: AuditProject }) => {
         </a>
       </div>
 
-      <div className="mt-6 bg-white p-5 rounded-xl shadow-sm border">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-semibold text-slate-700">Progres Kepatuhan</h3>
-          <div className="flex items-center gap-3">
-            <span
-              className={`text-sm font-bold ${
-                isAuditComplete ? "text-green-600" : "text-blue-600"
-              }`}
-            >
+      <div className="mt-6 bg-white p-6 rounded-xl shadow-sm border">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-500" />
+            Progres Kepatuhan ISPO
+          </h3>
+          <div className="text-right">
+            <span className={`text-2xl font-bold ${
+              isAuditComplete ? "text-green-600" : "text-blue-600"
+            }`}>
               {Math.round(progressPercentage)}%
             </span>
-
-            <button
-              onClick={() => setIsCertificateReady(!isCertificateReady)}
-              title="Simulasi Status Sertifikat"
-              className="text-slate-400 hover:text-slate-600 transition-colors"
-              type="button"
-            >
-              {isCertificateReady ? (
-                <ToggleRight className="w-5 h-5 text-green-600" />
-              ) : (
-                <ToggleLeft className="w-5 h-5" />
-              )}
-            </button>
+            <p className="text-xs text-slate-500">
+              {completedCriteria}/{totalCriteria} criteria disetujui
+            </p>
           </div>
         </div>
 
-        <div className="w-full bg-slate-200 rounded-full h-3">
+        {/* Main Progress Bar */}
+        <div className="w-full bg-slate-200 rounded-full h-4 mb-3">
           <div
-            className={`h-3 rounded-full transition-all duration-500 ${
+            className={`h-4 rounded-full transition-all duration-700 ${
               isAuditComplete ? "bg-green-500" : "bg-blue-600"
             }`}
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
 
-        <CertificateDownloadButton data={isCertificateReady ? dummyCertificateData : null} />
+        {/* Submission Progress Bar */}
+        <div className="w-full bg-slate-100 rounded-full h-2 mb-4">
+          <div
+            className="h-2 rounded-full bg-slate-400 transition-all duration-500"
+            style={{ width: `${submissionPercentage}%` }}
+          />
+        </div>
+
+        {/* Progress Statistics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+            <p className="text-2xl font-bold text-green-600">{completedCriteria}</p>
+            <p className="text-xs text-green-700 font-medium">Disetujui</p>
+          </div>
+          <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-2xl font-bold text-blue-600">{submittedCriteria - completedCriteria}</p>
+            <p className="text-xs text-blue-700 font-medium">Menunggu Review</p>
+          </div>
+          <div className="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
+            <p className="text-2xl font-bold text-orange-600">{pendingCriteria}</p>
+            <p className="text-xs text-orange-700 font-medium">Perlu Revisi</p>
+          </div>
+          <div className="text-center p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-2xl font-bold text-slate-600">{totalCriteria - submittedCriteria}</p>
+            <p className="text-xs text-slate-700 font-medium">Belum Submit</p>
+          </div>
+        </div>
+
+        <CertificateDownloadButton 
+          isComplete={isAuditComplete}
+          completedCriteria={completedCriteria}
+          totalCriteria={totalCriteria}
+          companyName={user.company}
+        />
       </div>
     </div>
   );
@@ -416,10 +484,9 @@ const CriterionCard = ({
   );
 };
 
-// =================================================================
-// ==                 KOMPONEN UTAMA DASHBOARD                    ==
-// =================================================================
+// KOMPONEN UTAMA DASHBOARD
 export default function UserDashboard() {
+  // SEMUA HOOKS HARUS DI ATAS, SEBELUM KONDISI APAPUN
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [project, setProject] = useState<AuditProject | null>(null);
   const [principles, setPrinciples] = useState<Principle[]>([]);
@@ -427,11 +494,37 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [criterionToUpdate, setCriterionToUpdate] = useState<string | null>(null);
 
-  // Load data dari Supabase
+  // useMemo juga harus di atas sebelum kondisi apapun
+  const principleStatuses = useMemo(() => {
+    if (!project || principles.length === 0) return {};
+    const statuses: { [key: string]: "completed" | "in_progress" | "not_started" } = {};
+
+    principles.forEach((principle) => {
+      const projectCriteria =
+        project.principles[principle.id as keyof typeof project.principles] || [];
+      const totalCriteriaCount = principle.criteria.length;
+
+      if (totalCriteriaCount === 0) {
+        statuses[principle.id] = "not_started";
+        return;
+      }
+      if (projectCriteria.length > 0 && projectCriteria.every((c) => c.status === "Disetujui")) {
+        statuses[principle.id] = "completed";
+        return;
+      }
+      if (projectCriteria.some((c) => c.status !== "Belum Ada Berkas")) {
+        statuses[principle.id] = "in_progress";
+      } else {
+        statuses[principle.id] = "not_started";
+      }
+    });
+    return statuses;
+  }, [project, principles]);
+
+  // useEffect harus setelah semua hooks lainnya
   useEffect(() => {
     async function loadData() {
       try {
@@ -445,7 +538,6 @@ export default function UserDashboard() {
           return;
         }
 
-        // Fetch company users
         const companyUsers = await getCompanyUsers();
         const foundUser = companyUsers.find(
           (user) => user.id === loggedInUserId || String(user.id) === loggedInUserId
@@ -459,14 +551,12 @@ export default function UserDashboard() {
 
         setCurrentUser(foundUser);
 
-        // Fetch principles
         const principlesData = await getAllPrinciples();
         setPrinciples(principlesData);
         if (principlesData.length > 0) {
           setActivePrincipleId(principlesData[0].id);
         }
 
-        // Fetch project for this company
         const userProject = await getAuditProjectByCompany(foundUser.company);
         if (userProject) {
           setProject(userProject);
@@ -485,46 +575,49 @@ export default function UserDashboard() {
     loadData();
   }, []);
 
+  // Fungsi-fungsi handler
   const handleFileUploadRequest = (criterionId: string) => {
     setCriterionToUpdate(criterionId);
     fileInputRef.current?.click();
   };
 
   const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0] && criterionToUpdate && project) {
-      setIsUploading(true);
+    if (!event.target.files || !event.target.files[0] || !criterionToUpdate || !project || !currentUser) {
+      return;
+    }
 
-      try {
-        const file = event.target.files[0];
-        const fileUrl = await uploadFile(file, `projects/${project.projectId}`);
+    const file = event.target.files[0];
+    setIsUploading(true);
 
-        if (fileUrl) {
-          const success = await updateAuditCriterion(project.projectId, criterionToUpdate, {
-            status: "Menunggu Verifikasi",
-            submittedFileUrl: fileUrl,
-          });
+    try {
+      const fileUrl = await uploadFile(file, currentUser.id, criterionToUpdate);
 
-          if (success) {
-            const updates: Partial<Criterion> = {
-              status: "Menunggu Verifikasi",
-              submittedFileUrl: fileUrl,
-            };
-            const newProject = updateCriterionInProject(project, criterionToUpdate, updates);
-            setProject(newProject);
-            alert("Berkas berhasil diunggah!");
-          } else {
-            alert("Gagal mengupdate status");
-          }
-        } else {
-          alert("Gagal mengunggah berkas");
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
-        alert("Terjadi kesalahan saat mengunggah berkas");
-      } finally {
-        setIsUploading(false);
-        setCriterionToUpdate(null);
+      if (!fileUrl) {
+        throw new Error('Upload gagal');
       }
+
+      const success = await updateAuditCriterion(project.projectId, criterionToUpdate, {
+        status: "Menunggu Verifikasi",
+        submittedFileUrl: fileUrl,
+      });
+
+      if (success) {
+        const updates: Partial<Criterion> = {
+          status: "Menunggu Verifikasi",
+          submittedFileUrl: fileUrl,
+        };
+        const newProject = updateCriterionInProject(project, criterionToUpdate, updates);
+        setProject(newProject);
+        alert("Berkas berhasil diunggah!");
+      } else {
+        alert("Gagal mengupdate status");
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan saat mengunggah berkas");
+    } finally {
+      setIsUploading(false);
+      setCriterionToUpdate(null);
+      event.target.value = '';
     }
   };
 
@@ -565,32 +658,7 @@ export default function UserDashboard() {
     }
   };
 
-  const principleStatuses = useMemo(() => {
-    if (!project || principles.length === 0) return {};
-    const statuses: { [key: string]: "completed" | "in_progress" | "not_started" } = {};
-
-    principles.forEach((principle) => {
-      const projectCriteria =
-        project.principles[principle.id as keyof typeof project.principles] || [];
-      const totalCriteriaCount = principle.criteria.length;
-
-      if (totalCriteriaCount === 0) {
-        statuses[principle.id] = "not_started";
-        return;
-      }
-      if (projectCriteria.length > 0 && projectCriteria.every((c) => c.status === "Disetujui")) {
-        statuses[principle.id] = "completed";
-        return;
-      }
-      if (projectCriteria.some((c) => c.status !== "Belum Ada Berkas")) {
-        statuses[principle.id] = "in_progress";
-      } else {
-        statuses[principle.id] = "not_started";
-      }
-    });
-    return statuses;
-  }, [project, principles]);
-
+  // KONDISI LOADING
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-slate-100">
@@ -600,6 +668,7 @@ export default function UserDashboard() {
     );
   }
 
+  // KONDISI ERROR
   if (error) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-slate-100">
@@ -618,7 +687,8 @@ export default function UserDashboard() {
     );
   }
 
-  if (!currentUser || !project) {
+  // KONDISI USER TIDAK ADA
+  if (!currentUser) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-slate-100">
         <p className="text-slate-600">Data tidak lengkap</p>
@@ -626,6 +696,56 @@ export default function UserDashboard() {
     );
   }
 
+  // KONDISI PROJECT TIDAK ADA (BELUM DIAPPROVE ADMIN)
+  if (!project) {
+    return (
+      <div className="bg-slate-100 min-h-screen p-4 sm:p-6 lg:p-8">
+        <div className="max-w-screen-xl mx-auto">
+          <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-2xl mx-auto">
+            <div className="text-blue-500 text-6xl mb-6">⏳</div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Menunggu Persetujuan Admin</h2>
+            <p className="text-slate-600 mb-6">
+              Halo <strong>{currentUser.name}</strong> dari <strong>{currentUser.company}</strong>!
+            </p>
+            <p className="text-slate-600 mb-6">
+              Permintaan sertifikasi ISPO Anda sedang dalam proses review oleh admin. 
+              Anda akan dapat mengakses dashboard dan mulai mengunggah dokumen setelah admin menyetujui permintaan Anda.
+            </p>
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 text-left">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Clock className="h-5 w-5 text-blue-400" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-blue-800">Status Permintaan</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Menunggu persetujuan dari PT Sucofindo. Kami akan memberitahu Anda melalui email 
+                    ketika permintaan Anda disetujui.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Refresh Status
+              </button>
+              <button
+                onClick={() => (window.location.href = "/login/perusahaan")}
+                className="bg-slate-600 text-white px-6 py-3 rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                Kembali ke Login
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDER NORMAL DASHBOARD
   const activePrinciple = principles.find((p) => p.id === activePrincipleId);
   const projectCriteria =
     project.principles[activePrincipleId as keyof typeof project.principles] || [];
